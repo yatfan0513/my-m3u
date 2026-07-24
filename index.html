@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5.0, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <title>全能視頻播放器</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7"></script>
+  <style>
+    :root {
+      --bg: #000;
+      --text: #f5f7fa;
+      --muted: rgba(245, 247, 250, 0.74);
+      --border: rgba(255, 255, 255, 0.18);
+      --surface: rgba(255, 255, 255, 0.08);
+      --surface-2: rgba(255, 255, 255, 0.12);
+      --surface-3: rgba(255, 255, 255, 0.18);
+      --button: rgba(255, 255, 255, 0.14);
+      --button-hover: rgba(255, 255, 255, 0.22);
+      --accent: #67d0ff;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+      --zoom: 1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", "Source Han Sans HK", sans-serif;
+    }
+    button, input { font: inherit; }
+
+    .app {
+      min-height: 100vh;
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+
+    .shell {
+      width: 100%;
+      max-width: none;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.3rem, 2.6vw, 2rem);
+      line-height: 1.1;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+
+    .hint, .status, .small-note { color: var(--muted); line-height: 1.5; }
+    .hint { font-size: 0.95rem; }
+    .status { min-height: 1.4em; font-size: 0.95rem; }
+
+    .row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .input-row { gap: 12px; }
+
+    .url-input, .mini-input {
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.18);
+      color: var(--text);
+      outline: none;
+    }
+
+    .url-input::placeholder, .mini-input::placeholder { color: rgba(245, 247, 250, 0.46); }
+
+    .url-input {
+      flex: 1 1 620px;
+      min-width: min(100%, 260px);
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+
+    .mini-input {
+      width: 92px;
+      border-radius: 14px;
+      padding: 11px 12px;
+      text-align: center;
+    }
+
+    .mini-input.wide { width: 128px; }
+
+    .button {
+      border: 1px solid var(--border);
+      background: var(--button);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 11px 15px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      white-space: nowrap;
+    }
+
+    .button:hover { background: var(--button-hover); }
+    .button:active { transform: translateY(1px); }
+    .button.primary {
+      background: linear-gradient(135deg, rgba(103, 208, 255, 0.24), rgba(103, 208, 255, 0.12));
+      border-color: rgba(103, 208, 255, 0.4);
+    }
+    .button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .bg-row .button { min-width: 96px; }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      width: 100%;
+    }
+
+    .media-wrap {
+      flex: 0 0 auto;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      min-height: 0;
+      max-width: 100%;
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.24);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-inline: auto;
+      align-self: center;
+    }
+
+    .media-wrap video,
+    .media-wrap audio,
+    .media-wrap img {
+      display: none;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      z-index: 1;
+      margin: auto;
+    }
+
+    .media-wrap video,
+    .media-wrap audio {
+      background: #000;
+      object-fit: contain;
+      -webkit-object-fit: contain;
+    }
+
+    .media-wrap video {
+      -webkit-transform: scale(var(--zoom));
+      transform: scale(var(--zoom));
+      -webkit-transform-origin: center center;
+      transform-origin: center center;
+      will-change: transform;
+    }
+    .media-wrap img {
+      object-fit: contain;
+      -webkit-object-fit: contain;
+      background: #000;
+      -webkit-transform: scale(var(--zoom));
+      transform: scale(var(--zoom));
+      -webkit-transform-origin: center center;
+      transform-origin: center center;
+    }
+
+    .progress-wrap { display: grid; gap: 10px; }
+    .progress {
+      width: 100%;
+      height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .time-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .controls-block { display: grid; gap: 12px; }
+    .control-group {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .label { color: var(--muted); font-size: 0.92rem; white-space: nowrap; }
+    .mode-pill[data-mode="image"] { background: rgba(255,255,255,0.2); }
+
+    .playlist {
+      display: none;
+      gap: 10px;
+    }
+    .playlist-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .playlist-list {
+      display: grid;
+      gap: 8px;
+      max-height: 280px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .playlist-item {
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      border-radius: 14px;
+      padding: 10px 12px;
+      cursor: pointer;
+      text-align: left;
+      display: grid;
+      gap: 6px;
+    }
+    .playlist-item:hover { background: var(--surface-3); }
+    .playlist-item.active { border-color: rgba(103, 208, 255, 0.6); }
+    .playlist-name { font-weight: 600; }
+    .playlist-url {
+      color: var(--muted);
+      font-size: 0.86rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .playlist-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .probe-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 0.76rem;
+      line-height: 1.2;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+    }
+    .probe-badge.pending { opacity: 0.8; }
+    .probe-badge.ok { border-color: rgba(55, 196, 110, 0.45); background: rgba(55, 196, 110, 0.14); }
+    .probe-badge.fail { border-color: rgba(255, 86, 86, 0.45); background: rgba(255, 86, 86, 0.14); }
+    .probe-badge.live { border-color: rgba(103, 208, 255, 0.45); background: rgba(103, 208, 255, 0.14); }
+
+    .is-image .progress-wrap,
+    .is-image .playback-group,
+    .is-image .speed-group,
+    .is-image .seek-group,
+    .is-image .speed-row {
+      display: none !important;
+    }
+
+    .sniff-progress {
+      display: none;
+      padding: 10px;
+      background: rgba(255, 152, 0, 0.12);
+      border: 1px solid rgba(255, 152, 0, 0.3);
+      border-radius: 12px;
+      font-size: 0.9rem;
+      color: #ffb74d;
+    }
+    .sniff-progress .progress-bar-outer {
+      width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 6px;
+    }
+    .sniff-progress .progress-bar-inner {
+      height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s;
+      width: 0%;
+    }
+
+    .filter-btn {
+      font-size: 0.82rem !important;
+      padding: 8px 12px !important;
+    }
+    .filter-btn.active {
+      background: linear-gradient(135deg, rgba(233, 30, 99, 0.3), rgba(233, 30, 99, 0.15));
+      border-color: rgba(233, 30, 99, 0.5);
+    }
+
+    @media (max-width: 720px) {
+      .app { padding: 8px; }
+      .card { border-radius: 16px; padding: 10px; }
+      .button { padding: 10px 12px; }
+      .bg-row .button { min-width: calc(50% - 10px); }
+      .url-input { flex-basis: 100%; }
+      .mini-input, .mini-input.wide { width: 100%; max-width: 130px; }
+      .media-wrap { width: 100%; min-height: 0; height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="appRoot">
+    <div class="shell">
+      <div class="card">
+        <div class="title-row">
+          <h1>🎬 全能視頻播放器</h1>
+          <span class="pill mode-pill" id="modePill" data-mode="idle">待載入</span>
+        </div>
+        <div class="hint" style="margin-top: 8px">
+          支援 M3U8、M3U、HTTP/HTTPS、影片、音頻、圖片。HLS 用 HLS.js 引擎播放。可嗅探網頁入面嘅視頻資源。RTSP／RTMP 需要先轉做 HLS 格式。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row input-row">
+          <input id="sourceInput" class="url-input" type="text" placeholder="請輸入視頻網址／M3U 清單／網頁網址（可以嗅探視頻）" autocomplete="off" spellcheck="false" />
+          <button id="loadBtn" class="button primary">▶ 播放</button>
+          <button id="parseBtn" class="button">📋 解析清單</button>
+          <button id="sniffBtn" class="button">🔍 嗅探網頁</button>
+          <button id="refreshBtn" class="button">🔄 刷新</button>
+          <button id="clearBtn" class="button">清空</button>
+        </div>
+        <div id="status" class="status" style="margin-top: 10px">未載入任何內容。</div>
+        <div id="sniffProgress" class="sniff-progress" style="margin-top: 10px"></div>
+      </div>
+
+      <div class="card bg-row">
+        <div class="row">
+          <button class="button" data-bg="#000000" data-fg="#f5f7fa">純黑</button>
+          <button class="button" data-bg="#ffffff" data-fg="#111111">純白</button>
+          <button class="button" data-bg="#808080" data-fg="#ffffff">純灰</button>
+          <button class="button" data-bg="#0b1f3a" data-fg="#f5f7fa">深藍</button>
+          <button class="button" data-bg="#d11f1f" data-fg="#ffffff">純紅</button>
+          <button class="button" data-bg="#168a2f" data-fg="#ffffff">純綠</button>
+          <button class="button" data-bg="#efe0b2" data-fg="#2a2417">米黃</button>
+          <button class="button" data-bg="#1e67ff" data-fg="#ffffff">純藍</button>
+          <button class="button" data-bg="#1f1e33" data-fg="#f5f7fa">藏紫</button>
+        </div>
+      </div>
+
+      <div class="stage" id="stageRoot">
+        <div class="media-wrap">
+          <video id="videoPlayer" playsinline webkit-playsinline preload="auto"></video>
+          <audio id="audioPlayer" controls preload="metadata"></audio>
+          <img id="imagePlayer" alt="圖片預覽" />
+        </div>
+
+        <div class="card progress-wrap" id="progressCard">
+          <input id="progressBar" class="progress" type="range" min="0" max="1000" value="0" step="1" />
+          <div class="time-row">
+            <span id="currentTime">00:00:00</span>
+            <span id="durationTime">00:00:00</span>
+            <span id="zoomState">縮放：100%</span>
+          </div>
+        </div>
+
+        <div class="card controls-block">
+          <div class="control-group playback-group">
+            <button id="toggleBtn" class="button primary">暫停</button>
+            <span class="label">播放引擎</span>
+            <span class="pill" id="enginePill">待命</span>
+          </div>
+
+          <div class="control-group seek-group">
+            <span class="label">跳轉到</span>
+            <input id="jumpHours" class="mini-input" type="number" min="0" step="1" placeholder="小時" />
+            <input id="jumpMinutes" class="mini-input" type="number" min="0" step="1" placeholder="分鐘" />
+            <input id="jumpSeconds" class="mini-input" type="number" min="0" step="1" placeholder="秒" />
+            <button id="jumpBtn" class="button">跳轉</button>
+            <span class="label">縮放比例</span>
+            <input id="zoomInput" class="mini-input wide" type="number" min="0" max="100" step="any" placeholder="100" />
+            <button id="zoomBtn" class="button">套用</button>
+          </div>
+
+          <div class="control-group speed-row">
+            <span class="label">⏩ 快進</span>
+            <div class="row">
+              <button class="button" data-skip="5">+5s</button>
+              <button class="button" data-skip="10">+10s</button>
+              <button class="button" data-skip="15">+15s</button>
+              <button class="button" data-skip="20">+20s</button>
+              <button class="button" data-skip="30">+30s</button>
+              <button class="button" data-skip="60">+1min</button>
+              <button class="button" data-skip="120">+2min</button>
+              <button class="button" data-skip="300">+5min</button>
+            </div>
+          </div>
+
+          <div class="control-group speed-row">
+            <span class="label">⏪ 倒退</span>
+            <div class="row">
+              <button class="button" data-skip="-5">-5s</button>
+              <button class="button" data-skip="-10">-10s</button>
+              <button class="button" data-skip="-15">-15s</button>
+              <button class="button" data-skip="-20">-20s</button>
+              <button class="button" data-skip="-30">-30s</button>
+              <button class="button" data-skip="-60">-1min</button>
+              <button class="button" data-skip="-120">-2min</button>
+              <button class="button" data-skip="-300">-5min</button>
+            </div>
+          </div>
+
+          <div class="control-group speed-group">
+            <span class="label">⚡ 倍速</span>
+            <div class="row" id="speedButtons">
+              <button class="button" data-speed="0.25">0.25x</button>
+              <button class="button" data-speed="0.5">0.5x</button>
+              <button class="button" data-speed="0.75">0.75x</button>
+              <button class="button primary" data-speed="1">1.0x</button>
+              <button class="button" data-speed="1.25">1.25x</button>
+              <button class="button" data-speed="1.5">1.5x</button>
+              <button class="button" data-speed="1.75">1.75x</button>
+              <button class="button" data-speed="2">2.0x</button>
+              <button class="button" data-speed="2.5">2.5x</button>
+              <button class="button" data-speed="3">3.0x</button>
+            </div>
+            <span class="label" id="speedInfo">播放引擎：待命</span>
+          </div>
+        </div>
+
+        <div class="card playlist" id="playlistCard">
+          <div class="playlist-head">
+            <div>
+              <div style="font-weight: 700">播放清單</div>
+              <div class="small-note" id="playlistSummary">未有清單。</div>
+            </div>
+            <div class="row" style="gap:6px">
+              <button id="filterBtn" class="button filter-btn">只顯示有效</button>
+              <button id="checkAllBtn" class="button filter-btn">🔍 重新檢查</button>
+              <button id="hidePlaylistBtn" class="button">收起</button>
+            </div>
+          </div>
+          <div id="playlistList" class="playlist-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      if (!String.prototype.includes) { String.prototype.includes = function (value, start) { return this.indexOf(value, start || 0) !== -1; }; }
+      if (!String.prototype.replaceAll) { String.prototype.replaceAll = function (search, replacement) { return this.split(search).join(replacement); }; }
+      if (!Array.prototype.includes) { Array.prototype.includes = function (value, start) { return this.indexOf(value, start || 0) !== -1; }; }
+      if (!Object.values) { Object.values = function (object) { var keys = Object.keys(object), values = []; for (var i = 0; i < keys.length; i++) values.push(object[keys[i]]); return values; }; }
+      if (window.NodeList && !NodeList.prototype.forEach) { NodeList.prototype.forEach = Array.prototype.forEach; }
+      if (!window.requestAnimationFrame) { window.requestAnimationFrame = function (callback) { return setTimeout(callback, 16); }; }
+      if (window.AbortController && window.AbortSignal && !AbortSignal.timeout) { AbortSignal.timeout = function (ms) { var controller = new AbortController(); setTimeout(function () { controller.abort(); }, ms); return controller.signal; }; }
+    }());
+(function () {
+  if (!String.prototype.includes) {
+    String.prototype.includes = function (value, start) {
+      return this.indexOf(value, start || 0) !== -1;
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (search, replacement) {
+      return this.split(search).join(replacement);
+    };
+  }
+  if (!Array.prototype.includes) {
+    Array.prototype.includes = function (value, start) {
+      return this.indexOf(value, start || 0) !== -1;
+    };
+  }
+  if (!Object.values) {
+    Object.values = function (object) {
+      var keys = Object.keys(object),
+        values = [];
+      for (var i = 0; i < keys.length; i++) values.push(object[keys[i]]);
+      return values;
+    };
+  }
+  if (window.NodeList && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = Array.prototype.forEach;
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function (callback) {
+      return setTimeout(callback, 16);
+    };
+  }
+  if (window.AbortController && window.AbortSignal && !AbortSignal.timeout) {
+    AbortSignal.timeout = function (ms) {
+      var controller = new AbortController();
+      setTimeout(function () {
+        controller.abort();
+      }, ms);
+      return controller.signal;
+    };
+  }
+})();
+(function () {
+  if (!String.prototype.includes) {
+    String.prototype.includes = function (value, start) {
+      return this.indexOf(value, start || 0) !== -1;
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (search, replacement) {
+      return this.split(search).join(replacement);
+    };
+  }
+  if (!Array.prototype.includes) {
+    Array.prototype.includes = function (value, start) {
+      return this.indexOf(value, start || 0) !== -1;
+    };
+  }
+  if (!Object.values) {
+    Object.values = function (object) {
+      var keys = Object.keys(object),
+        values = [];
+      for (var i = 0; i < keys.length; i++) values.push(object[keys[i]]);
+      return values;
+    };
+  }
+  if (window.NodeList && !NodeList.prototype.forEach) {
+    NodeList.prototype.forEach = Array.prototype.forEach;
+  }
+  if (!window.requestAnimationFrame) {
+    window.requestAnimationFrame = function (callback) {
+      return setTimeout(callback, 16);
+    };
+  }
+  if (window.AbortController && window.AbortSignal && !AbortSignal.timeout) {
+    AbortSignal.timeout = function (ms) {
+      var controller = new AbortController();
+      setTimeout(function () {
+        controller.abort();
+      }, ms);
+      return controller.signal;
+    };
+  }
+})();
+var _window$visualViewpor3;
+function _regenerator() {
+  /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */var e,
+    t,
+    r = "function" == typeof Symbol ? Symbol : {},
+    n = r.iterator || "@@iterator",
+    o = r.toStringTag || "@@toStringTag";
+  function i(r, n, o, i) {
+    var c = n && n.prototype instanceof Generator ? n : Generator,
+      u = Object.create(c.prototype);
+    return _regeneratorDefine2(u, "_invoke", function (r, n, o) {
+      var i,
+        c,
+        u,
+        f = 0,
+        p = o || [],
+        y = !1,
+        G = {
+          p: 0,
+          n: 0,
+          v: e,
+          a: d,
+          f: d.bind(e, 4),
+          d: function d(t, r) {
+            return i = t, c = 0, u = e, G.n = r, a;
+          }
+        };
+      function d(r, n) {
+        for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) {
+          var o,
+            i = p[t],
+            d = G.p,
+            l = i[2];
+          r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0));
+        }
+        if (o || r > 1) return a;
+        throw y = !0, n;
+      }
+      return function (o, p, l) {
+        if (f > 1) throw TypeError("Generator is already running");
+        for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) {
+          i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u);
+          try {
+            if (f = 2, i) {
+              if (c || (o = "next"), t = i[o]) {
+                if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object");
+                if (!t.done) return t;
+                u = t.value, c < 2 && (c = 0);
+              } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1);
+              i = e;
+            } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break;
+          } catch (t) {
+            i = e, c = 1, u = t;
+          } finally {
+            f = 1;
+          }
+        }
+        return {
+          value: t,
+          done: y
+        };
+      };
+    }(r, o, i), !0), u;
+  }
+  var a = {};
+  function Generator() {}
+  function GeneratorFunction() {}
+  function GeneratorFunctionPrototype() {}
+  t = Object.getPrototypeOf;
+  var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () {
+      return this;
+    }), t),
+    u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c);
+  function f(e) {
+    return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e;
+  }
+  return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () {
+    return this;
+  }), _regeneratorDefine2(u, "toString", function () {
+    return "[object Generator]";
+  }), (_regenerator = function _regenerator() {
+    return {
+      w: i,
+      m: f
+    };
+  })();
+}
+function _regeneratorDefine2(e, r, n, t) {
+  var i = Object.defineProperty;
+  try {
+    i({}, "", {});
+  } catch (e) {
+    i = 0;
+  }
+  _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) {
+    function o(r, n) {
+      _regeneratorDefine2(e, r, function (e) {
+        return this._invoke(r, n, e);
+      });
+    }
+    r ? i ? i(e, r, {
+      value: n,
+      enumerable: !t,
+      configurable: !t,
+      writable: !t
+    }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2));
+  }, _regeneratorDefine2(e, r, n, t);
+}
+function asyncGeneratorStep(n, t, e, r, o, a, c) {
+  try {
+    var i = n[a](c),
+      u = i.value;
+  } catch (n) {
+    return void e(n);
+  }
+  i.done ? t(u) : Promise.resolve(u).then(r, o);
+}
+function _asyncToGenerator(n) {
+  return function () {
+    var t = this,
+      e = arguments;
+    return new Promise(function (r, o) {
+      var a = n.apply(t, e);
+      function _next(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "next", n);
+      }
+      function _throw(n) {
+        asyncGeneratorStep(a, r, o, _next, _throw, "throw", n);
+      }
+      _next(void 0);
+    });
+  };
+}
+// ===== 全局變量 =====
+var appRoot = document.getElementById('appRoot');
+var sourceInput = document.getElementById('sourceInput');
+var loadBtn = document.getElementById('loadBtn');
+var parseBtn = document.getElementById('parseBtn');
+var sniffBtn = document.getElementById('sniffBtn');
+var refreshBtn = document.getElementById('refreshBtn');
+var clearBtn = document.getElementById('clearBtn');
+var statusEl = document.getElementById('status');
+var modePill = document.getElementById('modePill');
+var enginePill = document.getElementById('enginePill');
+var speedInfo = document.getElementById('speedInfo');
+var playlistCard = document.getElementById('playlistCard');
+var playlistList = document.getElementById('playlistList');
+var playlistSummary = document.getElementById('playlistSummary');
+var hidePlaylistBtn = document.getElementById('hidePlaylistBtn');
+var filterBtn = document.getElementById('filterBtn');
+var checkAllBtn = document.getElementById('checkAllBtn');
+var video = document.getElementById('videoPlayer');
+var audio = document.getElementById('audioPlayer');
+var image = document.getElementById('imagePlayer');
+var progressCard = document.getElementById('progressCard');
+var progressBar = document.getElementById('progressBar');
+var currentTimeLabel = document.getElementById('currentTime');
+var durationTimeLabel = document.getElementById('durationTime');
+var zoomState = document.getElementById('zoomState');
+var toggleBtn = document.getElementById('toggleBtn');
+var jumpHours = document.getElementById('jumpHours');
+var jumpMinutes = document.getElementById('jumpMinutes');
+var jumpSeconds = document.getElementById('jumpSeconds');
+var jumpBtn = document.getElementById('jumpBtn');
+var zoomInput = document.getElementById('zoomInput');
+var zoomBtn = document.getElementById('zoomBtn');
+var mediaWrap = document.querySelector('.media-wrap');
+var hls = null;
+var activeHlsUrl = '';
+var hlsRetryTimer = null;
+var hlsRetryCount = 0;
+var currentSpeed = 1.0;
+var speedEnforcer = null;
+var isUsingHlsJs = false;
+var parsedChannels = [];
+var channelStatuses = {};
+var showOnlyValid = false;
+var sniffedVideos = [];
+var current = {
+  type: 'idle',
+  src: '',
+  zoom: 100,
+  speed: 1,
+  playlist: [],
+  activeIndex: -1
+};
+
+// ===== 工具函數 =====
+function pad(n) {
+  return String(Math.max(0, Math.floor(Number(n) || 0))).padStart(2, '0');
+}
+function formatTime(s) {
+  if (isNaN(s) || !isFinite(s) || s < 0) return '00:00:00';
+  var h = Math.floor(s / 3600);
+  var m = Math.floor(s % 3600 / 60);
+  var sec = Math.floor(s % 60);
+  return "".concat(pad(h), ":").concat(pad(m), ":").concat(pad(sec));
+}
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+function setMode(type) {
+  current.type = type;
+  appRoot.classList.toggle('is-image', type === 'image');
+  var labels = {
+    idle: '待載入',
+    video: '視頻',
+    audio: '音頻',
+    image: '圖片',
+    hls: 'HLS 視頻',
+    playlist: '清單'
+  };
+  modePill.textContent = labels[type] || type;
+  modePill.dataset.mode = type;
+}
+function updateEngineLabel(text) {
+  enginePill.textContent = text;
+  speedInfo.textContent = '播放引擎：' + text;
+}
+function updateSpeedDisplay() {
+  var info = [];
+  if (Math.abs(video.playbackRate - currentSpeed) > 0.01) {
+    info.push('⚠️ 瀏覽器限制為 ' + video.playbackRate + 'x');
+  }
+  info.push(isUsingHlsJs ? '✅ 使用 HLS.js 引擎' : video.src ? '✅ 直接播放' : '待播放');
+  speedInfo.textContent = info.join(' | ');
+}
+function detectType(url) {
+  var u = url.toLowerCase().split('?')[0];
+  if (u.includes('.m3u8')) return 'hls';
+  if (u.includes('.m3u') && !u.includes('.m3u8')) return 'm3u';
+  if (u.match(/\.(mp4|webm|ogg|ogv|mov|mkv|avi|flv|wmv|ts)(\?|$)/i)) return 'video';
+  if (u.match(/\.(mp3|wav|aac|flac|ogg|oga|wma|m4a)(\?|$)/i)) return 'audio';
+  if (u.match(/\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?|$)/i)) return 'image';
+  return 'unknown';
+}
+function isLikelyHlsUrl(url) {
+  var value = String(url || '').toLowerCase();
+  if (!/^https?:\/\//i.test(value)) return false;
+  if (/\.m3u8(?:[?#]|$)/i.test(value)) return true;
+  if (/\.(mp4|webm|ogv|mov|mkv|avi|flv|wmv|ts|mp3|wav|aac|flac|ogg|oga|m4a|wma)(?:[?#]|$)/i.test(value)) return false;
+  return /(?:\.php|\.asp|\.aspx|\/api(?:[/?]|$)|\/live(?:[/?]|$)|\/play(?:[/?]|$)|\/stream(?:[/?]|$)|[?&](?:id|play|url|stream)=)/i.test(value);
+}
+
+// ===================================================================
+// 倍速控制（強制 HLS.js，解決平板倍速問題）
+// ===================================================================
+function startSpeedEnforcer() {
+  stopSpeedEnforcer();
+  var checkCount = 0;
+  speedEnforcer = setInterval(function () {
+    if (!video || video.paused) {
+      checkCount++;
+      if (checkCount > 50) stopSpeedEnforcer();
+      return;
+    }
+    if (Math.abs(video.playbackRate - currentSpeed) > 0.01) video.playbackRate = currentSpeed;
+    checkCount++;
+    if (checkCount > 100) stopSpeedEnforcer();
+  }, 100);
+}
+function stopSpeedEnforcer() {
+  if (speedEnforcer) {
+    clearInterval(speedEnforcer);
+    speedEnforcer = null;
+  }
+}
+function setSpeed(rate, btn) {
+  currentSpeed = rate;
+  current.speed = rate;
+  try {
+    video.playbackRate = rate;
+  } catch (e) {}
+  if (!video.paused && !video.ended) {
+    video.pause();
+    setTimeout(function () {
+      try {
+        video.playbackRate = rate;
+      } catch (e) {}
+      setTimeout(function () {
+        try {
+          video.playbackRate = rate;
+        } catch (e) {}
+        video.play().catch(function () {});
+      }, 30);
+    }, 30);
+  } else {
+    setTimeout(function () {
+      try {
+        video.playbackRate = rate;
+      } catch (e) {}
+    }, 50);
+    setTimeout(function () {
+      try {
+        video.playbackRate = rate;
+      } catch (e) {}
+    }, 200);
+    setTimeout(function () {
+      try {
+        video.playbackRate = rate;
+      } catch (e) {}
+    }, 500);
+  }
+  startSpeedEnforcer();
+  document.querySelectorAll('[data-speed]').forEach(function (b) {
+    return b.classList.remove('primary');
+  });
+  if (btn) btn.classList.add('primary');else {
+    document.querySelectorAll('[data-speed]').forEach(function (b) {
+      if (Number(b.dataset.speed) === rate) b.classList.add('primary');
+    });
+  }
+  updateSpeedDisplay();
+  setStatus('目標速度：' + rate + 'x');
+}
+function applySpeedOnPlay() {
+  try {
+    video.playbackRate = currentSpeed;
+  } catch (e) {}
+  requestAnimationFrame(function () {
+    try {
+      video.playbackRate = currentSpeed;
+    } catch (e) {}
+  });
+  startSpeedEnforcer();
+}
+
+// ===================================================================
+// 背景切換
+// ===================================================================
+function applyBackground(bg, fg, persist) {
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--text', fg);
+  var darkText = fg === '#111111' || fg === '#2a2417';
+  document.documentElement.style.setProperty('--muted', darkText ? 'rgba(17,17,17,0.72)' : 'rgba(245,247,250,0.74)');
+  document.documentElement.style.setProperty('--border', darkText ? 'rgba(17,17,17,0.18)' : 'rgba(255,255,255,0.18)');
+  document.documentElement.style.setProperty('--surface', darkText ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.08)');
+  document.documentElement.style.setProperty('--surface-2', darkText ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.12)');
+  document.documentElement.style.setProperty('--surface-3', darkText ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.18)');
+  document.documentElement.style.setProperty('--button', darkText ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.14)');
+  document.documentElement.style.setProperty('--button-hover', darkText ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.22)');
+}
+
+// ===================================================================
+// 縮放
+// ===================================================================
+function applyZoom(value, persist) {
+  var raw = value;
+  var text = typeof raw === 'string' ? raw.trim() : String(raw == null ? '' : raw).trim();
+  var parsed = text === '' ? 100 : Number(text);
+  var valid = text !== '' && /^\d+(?:\.\d+)?$/.test(text) && Number.isFinite(parsed) && parsed >= 0 && parsed <= 100;
+  var next = valid ? parsed : 100;
+  current.zoom = next;
+  document.documentElement.style.setProperty('--zoom', String(current.zoom / 100));
+  zoomInput.value = next === 100 ? '' : String(next);
+  zoomState.textContent = '縮放：' + next + '%';
+  if (!valid && text !== '') setStatus('縮放比例無效，已改用 100%。');
+}
+
+// ===================================================================
+// HLS.js 播放引擎（靜態加載，直接使用 window.Hls）
+// ===================================================================
+function cleanupHls() {
+  if (hlsRetryTimer) {
+    clearTimeout(hlsRetryTimer);
+    hlsRetryTimer = null;
+  }
+  if (hls) {
+    try {
+      hls.destroy();
+    } catch (_) {}
+    hls = null;
+  }
+  activeHlsUrl = '';
+  hlsRetryCount = 0;
+  isUsingHlsJs = false;
+}
+function nativeHlsAvailable() {
+  return typeof video.canPlayType === 'function' && !!video.canPlayType('application/vnd.apple.mpegurl');
+}
+function proxyHlsUrl(url) {
+  return '/api/iptv-proxy?mode=raw&url=' + encodeURIComponent(url);
+}
+function startHlsEngine(url, usingProxy) {
+  if (typeof Hls === 'undefined' || !Hls.isSupported()) {
+    setStatus('HLS.js 引擎未能載入，請重新整理頁面。');
+    updateEngineLabel('HLS.js 不可用');
+    return;
+  }
+  activeHlsUrl = url;
+  isUsingHlsJs = true;
+  hls = new Hls({
+    debug: false,
+    enableWorker: true,
+    lowLatencyMode: true,
+    backBufferLength: 15,
+    maxBufferLength: 12,
+    maxMaxBufferLength: 24,
+    manifestLoadingTimeOut: 9000,
+    levelLoadingTimeOut: 9000,
+    fragLoadingTimeOut: 10000,
+    startLevel: -1
+  });
+  hls.on(Hls.Events.MANIFEST_PARSED, function (_, data) {
+    hlsRetryCount = 0;
+    var level = hls.levels && hls.levels.find(function (item) {
+      return item && item.width && item.height;
+    });
+    if (level) fitMediaFrame(level.width, level.height);
+    setStatus(usingProxy ? 'HLS 串流已載入（代理 + HLS.js）' : 'HLS 串流已載入（HLS.js）');
+    updateEngineLabel(usingProxy ? '代理 + HLS.js' : 'HLS.js');
+    applySpeedOnPlay();
+    video.play().catch(function () {});
+    requestAnimationFrame(refitCurrentMedia);
+  });
+  hls.on(Hls.Events.ERROR, function (_, data) {
+    if (!data || !data.fatal) return;
+    if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+      setStatus('媒體錯誤，正在修復……');
+      try {
+        hls.recoverMediaError();
+      } catch (_) {}
+      return;
+    }
+    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+      hlsRetryCount += 1;
+      if (!usingProxy && hlsRetryCount === 1) {
+        setStatus('來源跨域或網絡受限，正在切換代理……');
+        try {
+          hls.destroy();
+        } catch (_) {}
+        hls = null;
+        hlsRetryCount = 0;
+        hlsRetryTimer = setTimeout(function () {
+          startHlsEngine(proxyHlsUrl(url), true);
+        }, 120);
+        return;
+      }
+      if (hlsRetryCount <= 2) {
+        setStatus('網絡錯誤，正在重試（' + hlsRetryCount + '/2）……');
+        try {
+          hls.startLoad();
+        } catch (_) {}
+        return;
+      }
+      setStatus('串流網絡錯誤：來源可能限制跨域、需要指定標頭，或目前無法連接。');
+      updateEngineLabel('HLS.js 網絡錯誤');
+      return;
+    }
+    setStatus('HLS.js 播放失敗：串流格式可能不兼容。');
+    updateEngineLabel('HLS.js 播放失敗');
+  });
+  hls.attachMedia(video);
+  hls.loadSource(url);
+}
+function loadHLSViaHlsJs(url) {
+  cleanupHls();
+  showOnly('video');
+  setStatus('正在使用 HLS.js 載入……');
+  startHlsEngine(url, false);
+}
+function loadDirect(url) {
+  isUsingHlsJs = false;
+  showOnly('video');
+  video.src = url;
+  video.load();
+  video.play().catch(function () {
+    setStatus('已載入，請點擊播放按鈕');
+  });
+}
+
+// ===================================================================
+// 主載入函數
+// ===================================================================
+function loadVideo(url) {
+  url = url || sourceInput.value.trim();
+  if (!url) {
+    setStatus('請輸入媒體地址');
+    return;
+  }
+  cleanupHls();
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  isUsingHlsJs = false;
+  var type = detectType(url);
+  setStatus('正在載入……');
+  setMode(type === 'hls' ? 'hls' : type === 'video' ? 'video' : type === 'audio' ? 'audio' : type === 'image' ? 'image' : 'video');
+  if (type === 'm3u') {
+    parseM3UFromURL(url);
+    return;
+  }
+  if (type === 'hls' || url.toLowerCase().includes('.m3u8') || isLikelyHlsUrl(url)) {
+    showOnly('video');
+    loadHLSViaHlsJs(url);
+    return;
+  }
+  if (type === 'image') {
+    showOnly('image');
+    image.src = url;
+    image.onload = function () {
+      setStatus('圖片已載入');
+      updateEngineLabel('圖片模式');
+    };
+    image.onerror = function () {
+      setStatus('圖片載入失敗');
+    };
+    return;
+  }
+  if (type === 'audio') {
+    showOnly('audio');
+    audio.src = url;
+    audio.load();
+    audio.play().catch(function () {});
+    updateEngineLabel('音頻模式');
+    return;
+  }
+  loadDirect(url);
+  updateEngineLabel('HTML5 媒體模式');
+}
+function showOnly(kind) {
+  video.style.display = 'none';
+  audio.style.display = 'none';
+  image.style.display = 'none';
+  if (kind === 'video' || kind === 'hls' || kind === 'playlist') {
+    video.style.display = 'block';
+    video.style.position = 'absolute';
+    video.style.top = '0';
+    video.style.left = '0';
+    video.style.width = '100%';
+    video.style.height = '100%';
+    video.style.zIndex = '1';
+    video.style.objectFit = 'contain';
+    // 強制平板瀏覽器重新渲染視頻
+    void video.offsetWidth;
+  } else if (kind === 'audio') {
+    audio.style.display = 'block';
+  } else if (kind === 'image') {
+    image.style.display = 'block';
+  }
+}
+function getActiveMedia() {
+  if (current.type === 'audio') return audio;
+  if (current.type === 'image' || current.type === 'idle') return null;
+  return video;
+}
+
+// ===================================================================
+// 快進/倒退/跳轉
+// ===================================================================
+function skipBy(seconds) {
+  var media = getActiveMedia();
+  if (!media) return;
+  var base = Number.isFinite(media.currentTime) ? media.currentTime : 0;
+  var target = Math.max(0, base + seconds);
+  var duration = Number.isFinite(media.duration) && media.duration > 0 ? media.duration : Infinity;
+  media.currentTime = Math.min(target, duration);
+  media.play().catch(function () {});
+}
+
+// ===================================================================
+// CORS 代理嗅探
+// ===================================================================
+var CORS_PROXIES = [function (url) {
+  return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+}, function (url) {
+  return 'https://corsproxy.io/?' + encodeURIComponent(url);
+}, function (url) {
+  return 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url);
+}];
+function fetchViaProxy(_x) {
+  return _fetchViaProxy.apply(this, arguments);
+}
+function _fetchViaProxy() {
+  _fetchViaProxy = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(pageUrl) {
+    var lastError, i, proxyUrl, resp, text, _t;
+    return _regenerator().w(function (_context) {
+      while (1) switch (_context.p = _context.n) {
+        case 0:
+          lastError = null;
+          i = 0;
+        case 1:
+          if (!(i < CORS_PROXIES.length)) {
+            _context.n = 9;
+            break;
+          }
+          proxyUrl = CORS_PROXIES[i](pageUrl);
+          _context.p = 2;
+          showSniffProgress('正在通過代理 ' + (i + 1) + '/' + CORS_PROXIES.length + ' 獲取網頁...', i / CORS_PROXIES.length * 20);
+          _context.n = 3;
+          return fetch(proxyUrl, {
+            signal: AbortSignal.timeout(15000)
+          });
+        case 3:
+          resp = _context.v;
+          if (resp.ok) {
+            _context.n = 4;
+            break;
+          }
+          throw new Error('HTTP ' + resp.status);
+        case 4:
+          _context.n = 5;
+          return resp.text();
+        case 5:
+          text = _context.v;
+          if (!(text && text.length > 100)) {
+            _context.n = 6;
+            break;
+          }
+          return _context.a(2, text);
+        case 6:
+          throw new Error('響應內容為空');
+        case 7:
+          _context.p = 7;
+          _t = _context.v;
+          lastError = _t;
+          console.warn('代理 ' + (i + 1) + ' 失敗:', _t.message);
+        case 8:
+          i++;
+          _context.n = 1;
+          break;
+        case 9:
+          throw lastError || new Error('所有代理均失敗');
+        case 10:
+          return _context.a(2);
+      }
+    }, _callee, null, [[2, 7]]);
+  }));
+  return _fetchViaProxy.apply(this, arguments);
+}
+function showSniffProgress(text, percent) {
+  var el = document.getElementById('sniffProgress');
+  el.style.display = 'block';
+  el.innerHTML = '<div>' + text + '</div><div class="progress-bar-outer"><div class="progress-bar-inner" style="width:' + percent + '%"></div></div>';
+}
+function hideSniffProgress() {
+  document.getElementById('sniffProgress').style.display = 'none';
+}
+
+// ===================================================================
+// 網頁視頻嗅探
+// ===================================================================
+function extractVideoURLs(html, baseURL) {
+  var found = new Map();
+  var baseOrigin = function () {
+    try {
+      return new URL(baseURL).origin;
+    } catch (e) {
+      return '';
+    }
+  }();
+  var basePath = function () {
+    try {
+      return baseURL.substring(0, baseURL.lastIndexOf('/') + 1);
+    } catch (e) {
+      return '';
+    }
+  }();
+  function addURL(url, name, type) {
+    if (!url || typeof url !== 'string') return;
+    url = url.trim();
+    if (!url || url.length < 5) return;
+    if (url.startsWith('data:') || url.startsWith('javascript:') || url.startsWith('blob:')) return;
+    if (url.startsWith('//')) url = 'https:' + url;else if (url.startsWith('/')) url = baseOrigin + url;else if (!url.match(/^https?:\/\//i)) url = basePath + url;
+    if (found.has(url)) return;
+    found.set(url, {
+      name: name || url.split('/').pop().split('?')[0] || '視頻',
+      type: type || guessType(url)
+    });
+  }
+  function guessType(url) {
+    var u = url.toLowerCase().split('?')[0];
+    if (u.includes('.m3u8')) return 'HLS';
+    if (u.match(/\.mp4(\?|$)/)) return 'MP4';
+    if (u.match(/\.webm(\?|$)/)) return 'WebM';
+    if (u.match(/\.flv(\?|$)/)) return 'FLV';
+    if (u.match(/\.ts(\?|$)/)) return 'TS';
+    if (u.match(/\.(mp3|aac|m4a|wav|flac|ogg)(\?|$)/)) return '音頻';
+    return '視頻流';
+  }
+
+  // DOM 解析
+  try {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html, 'text/html');
+    doc.querySelectorAll('video').forEach(function (v) {
+      var src = v.getAttribute('src');
+      if (src) addURL(src, v.getAttribute('title') || v.getAttribute('alt') || '視頻');
+      v.querySelectorAll('source').forEach(function (s) {
+        var ssrc = s.getAttribute('src');
+        if (ssrc) addURL(ssrc, s.getAttribute('title') || '視頻源');
+      });
+    });
+    doc.querySelectorAll('source[src]').forEach(function (s) {
+      addURL(s.getAttribute('src'), '視頻源');
+    });
+    doc.querySelectorAll('iframe[src]').forEach(function (f) {
+      var src = f.getAttribute('src');
+      if (src && (src.includes('player') || src.includes('video') || src.includes('embed'))) addURL(src, '嵌入式播放器');
+    });
+    doc.querySelectorAll('a[href]').forEach(function (a) {
+      var href = a.getAttribute('href');
+      if (href && href.match(/\.(mp4|m3u8|webm|flv|ts|mp3|m4a|aac|flac)(\?|$)/i)) addURL(href, a.textContent.trim() || '視頻鏈接');
+    });
+  } catch (e) {
+    console.warn('DOM分析失敗:', e);
+  }
+
+  // 正則提取
+  var m;
+  var m3u8Regex = /https?:\/\/[^\s"'<>\]\)]+\.m3u8[^\s"'<>\]\)]*/gi;
+  while ((m = m3u8Regex.exec(html)) !== null) addURL(m[0].replace(/\\u002F/g, '/').replace(/\\\//g, ''), '', 'HLS');
+  var videoRegex = /https?:\/\/[^\s"'<>\]\)]+\.(?:mp4|webm|flv|ts|ogv|mov|mkv)(?:\?[^\s"'<>\]\)]*)?/gi;
+  while ((m = videoRegex.exec(html)) !== null) addURL(m[0].replace(/\\u002F/g, '/').replace(/\\\//g, ''), '', guessType(m[0]));
+  var audioRegex = /https?:\/\/[^\s"'<>\]\)]+\.(?:mp3|aac|m4a|wav|flac|oga|wma)(?:\?[^\s"'<>\]\)]*)?/gi;
+  while ((m = audioRegex.exec(html)) !== null) addURL(m[0].replace(/\\u002F/g, '/').replace(/\\\//g, ''), '', '音頻');
+
+  // JS 變量提取
+  var jsPatterns = [/(?:video_?url|play_?url|playurl|videourl|src|url|mp4url|m3u8url|file|source|stream|durl|videoSrc|playLink)\s*[:=]\s*["'](https?:\/\/[^"']+\.(?:m3u8|mp4|webm|flv|ts|m3u)[^"']*)["']/gi, /["'](https?:\/\/[^"']*\.(?:m3u8|mp4|webm|flv)[^"']*)["']/gi];
+  jsPatterns.forEach(function (regex) {
+    while ((m = regex.exec(html)) !== null) {
+      var url = m[1].replace(/\\u002F/g, '/').replace(/\\\//g, '/').replace(/&amp;/g, '&');
+      addURL(url, '', guessType(url));
+    }
+  });
+
+  // B站特殊處理
+  var biliMatch = html.match(/__playinfo__\s*=\s*({[^]*?})\s*<\/script>/);
+  if (biliMatch) {
+    try {
+      var biliData = JSON.parse(biliMatch[1]);
+      if (biliData.data && biliData.data.dash && biliData.data.dash.video) {
+        biliData.data.dash.video.forEach(function (v) {
+          if (v.baseUrl) addURL(v.baseUrl, 'B站視頻 ' + (v.width || '') + 'x' + (v.height || ''), 'B站視頻');
+        });
+      }
+    } catch (e) {
+      console.warn('B站數據分析失敗:', e);
+    }
+  }
+  return Array.from(found.entries()).map(function (entry) {
+    return {
+      url: entry[0],
+      name: entry[1].name,
+      type: entry[1].type
+    };
+  });
+}
+function sniffWebpage() {
+  return _sniffWebpage.apply(this, arguments);
+} // ===================================================================
+// M3U 解析
+// ===================================================================
+function _sniffWebpage() {
+  _sniffWebpage = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
+    var url, type, htmlContent, videos, typeOrder, seen, uniqueVideos, _t2;
+    return _regenerator().w(function (_context2) {
+      while (1) switch (_context2.p = _context2.n) {
+        case 0:
+          url = sourceInput.value.trim();
+          if (url) {
+            _context2.n = 1;
+            break;
+          }
+          setStatus('請輸入網頁地址');
+          return _context2.a(2);
+        case 1:
+          type = detectType(url);
+          if (!(type === 'hls' || type === 'video' || type === 'audio')) {
+            _context2.n = 2;
+            break;
+          }
+          setStatus('這是直接可播放的視頻網址，正在播放...');
+          loadVideo(url);
+          return _context2.a(2);
+        case 2:
+          setStatus('🔍 開始嗅探網頁中的視頻資源...');
+          showSniffProgress('準備中...', 0);
+          _context2.p = 3;
+          showSniffProgress('正在獲取網頁內容...', 10);
+          _context2.n = 4;
+          return fetchViaProxy(url);
+        case 4:
+          htmlContent = _context2.v;
+          showSniffProgress('網頁獲取成功，正在分析視頻資源...', 40);
+          _context2.n = 5;
+          return new Promise(function (r) {
+            setTimeout(r, 300);
+          });
+        case 5:
+          videos = extractVideoURLs(htmlContent, url);
+          showSniffProgress('發現 ' + videos.length + ' 個視頻資源，正在整理...', 70);
+          if (!(videos.length === 0)) {
+            _context2.n = 6;
+            break;
+          }
+          hideSniffProgress();
+          setStatus('未在網頁中找到可識別的视频地址。該網頁可能使用加密/DRM保護。');
+          return _context2.a(2);
+        case 6:
+          typeOrder = {
+            'HLS': 0,
+            'MP4': 1,
+            'WebM': 2,
+            'FLV': 3,
+            'TS': 4,
+            '音頻': 5,
+            'B站視頻': 6
+          };
+          videos.sort(function (a, b) {
+            return (typeOrder[a.type] || 99) - (typeOrder[b.type] || 99);
+          });
+          seen = new Set();
+          uniqueVideos = videos.filter(function (v) {
+            if (seen.has(v.url)) return false;
+            seen.add(v.url);
+            return true;
+          });
+          sniffedVideos = uniqueVideos;
+          parsedChannels = uniqueVideos.map(function (v, i) {
+            return {
+              name: '[' + v.type + '] ' + v.name,
+              url: v.url,
+              logo: ''
+            };
+          });
+          channelStatuses = {};
+          showSniffProgress('完成！發現 ' + uniqueVideos.length + ' 個視頻', 100);
+          setTimeout(function () {
+            hideSniffProgress();
+          }, 2000);
+          setStatus('🎉 嗅探完成！發現 ' + uniqueVideos.length + ' 個視頻資源，點擊列表播放');
+          renderChannelList();
+          setTimeout(function () {
+            checkAllChannels();
+          }, 800);
+          _context2.n = 8;
+          break;
+        case 7:
+          _context2.p = 7;
+          _t2 = _context2.v;
+          hideSniffProgress();
+          setStatus('嗅探失敗: ' + _t2.message);
+        case 8:
+          return _context2.a(2);
+      }
+    }, _callee2, null, [[3, 7]]);
+  }));
+  return _sniffWebpage.apply(this, arguments);
+}
+function parseM3U() {
+  var url = sourceInput.value.trim();
+  if (!url) {
+    setStatus('請輸入 M3U 文件網址');
+    return;
+  }
+  parseM3UFromURL(url);
+}
+function parseM3UFromURL(url) {
+  setStatus('正在快速讀取 M3U 清單……');
+  var controller = new AbortController();
+  var timeout = setTimeout(function () {
+    controller.abort();
+  }, 20000);
+  var requestUrl = '/api/iptv-proxy?mode=inspect&url=' + encodeURIComponent(url);
+  fetch(requestUrl, {
+    signal: controller.signal,
+    headers: {
+      Accept: 'application/json'
+    }
+  }).then(function (response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  }).then(function (payload) {
+    if (!payload || !payload.ok || !payload.text) throw new Error(payload && payload.error ? payload.error : '清單內容為空');
+    parseM3UContent(payload.text, payload.finalUrl || url);
+  }).catch(function (error) {
+    setStatus('代理讀取失敗，嘗試直接讀取 M3U……');
+    fetch(url, {
+      signal: controller.signal
+    }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.text();
+    }).then(function (text) {
+      parseM3UContent(text, url);
+    }).catch(function (fallbackError) {
+      setStatus('M3U 分析失敗：' + (fallbackError.message || error.message));
+      loadDirect(url);
+    });
+  }).finally(function () {
+    clearTimeout(timeout);
+  });
+}
+function resolvePlaylistURL(rawURL, baseURL) {
+  var value = String(rawURL || '').trim();
+  if (!value) return '';
+  if (/^(https?:|rtmp:|rtsp:|udp:|rtp:|mms:|ftp:|file:|blob:|data:)/i.test(value)) return value;
+  try {
+    return new URL(value, baseURL).href;
+  } catch (_) {
+    return value;
+  }
+}
+function parseM3UContent(text, baseURL) {
+  var lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/);
+  var channels = [];
+  var currentName = '',
+    currentLogo = '',
+    currentGroup = '';
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || line === '#EXTM3U' || line.startsWith('#EXT-X-') || line.startsWith('#EXTVLCOPT')) continue;
+    if (line.startsWith('#EXTINF:')) {
+      var comma = line.indexOf(',');
+      var tvgNameMatch = line.match(/tvg-name\s*=\s*"([^"]*)"/i);
+      currentName = comma >= 0 ? line.slice(comma + 1).trim() : tvgNameMatch ? tvgNameMatch[1].trim() : '未知頻道';
+      var logoMatch = line.match(/tvg-logo\s*=\s*"([^"]*)"/i);
+      var groupMatch = line.match(/group-title\s*=\s*"([^"]*)"/i);
+      currentLogo = logoMatch ? logoMatch[1] : '';
+      currentGroup = groupMatch ? groupMatch[1] : '';
+      continue;
+    }
+    if (line.startsWith('#EXTGRP:')) {
+      currentGroup = line.slice(8).trim();
+      continue;
+    }
+    if (line.startsWith('#')) continue;
+    var streamURL = resolvePlaylistURL(line, baseURL);
+    if (!streamURL) continue;
+    channels.push({
+      name: currentName || streamURL,
+      url: streamURL,
+      logo: currentLogo,
+      group: currentGroup,
+      probe: {
+        status: 'pending',
+        latency: null
+      }
+    });
+    currentName = '';
+    currentLogo = '';
+    currentGroup = '';
+  }
+  var unique = [],
+    seen = new Set();
+  channels.forEach(function (channel) {
+    if (!seen.has(channel.url)) {
+      seen.add(channel.url);
+      unique.push(channel);
+    }
+  });
+  if (unique.length === 0) {
+    setStatus('未找到頻道列表，嘗試直接播放……');
+    loadDirect(baseURL || sourceInput.value.trim());
+    return;
+  }
+  parsedChannels = unique;
+  channelStatuses = {};
+  current.playlist = unique;
+  current.activeIndex = -1;
+  setMode('playlist');
+  renderChannelList();
+  setStatus('已快速解析 ' + unique.length + ' 個頻道，正在並行測試有效性……');
+  checkAllChannels();
+}
+
+// ===================================================================
+// 頻道有效性檢測
+// ===================================================================
+function checkChannel(url) {
+  return new Promise(function (resolve) {
+    var startTime = Date.now();
+    var type = detectType(url);
+    var finish = function finish(status, note) {
+      resolve({
+        status: status,
+        latency: Date.now() - startTime,
+        note: note || ''
+      });
+    };
+    if (type === 'hls' || isLikelyHlsUrl(url) || /\.m3u8(?:[?#]|$)/i.test(url)) {
+      if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+        var testHls = new Hls({
+          debug: false,
+          enableWorker: false,
+          lowLatencyMode: true,
+          maxBufferLength: 3
+        });
+        var settled = false;
+        var done = function done(status, note) {
+          if (settled) return;
+          settled = true;
+          try {
+            testHls.destroy();
+          } catch (_) {}
+          finish(status, note);
+        };
+        var timeout = setTimeout(function () {
+          done('timeout', '超時');
+        }, 5000);
+        testHls.on(Hls.Events.MANIFEST_PARSED, function () {
+          clearTimeout(timeout);
+          done('ok', '清單已載入');
+        });
+        testHls.on(Hls.Events.ERROR, function (_, data) {
+          if (data && data.fatal) {
+            clearTimeout(timeout);
+            done('fail', data.details || 'HLS錯誤');
+          }
+        });
+        try {
+          testHls.loadSource(url);
+        } catch (_) {
+          clearTimeout(timeout);
+          done('fail', '無法載入');
+        }
+      } else {
+        checkWithVideo(url, startTime, function (result) {
+          resolve(result);
+        });
+      }
+      return;
+    }
+    checkWithVideo(url, startTime, function (result) {
+      resolve(result);
+    });
+  });
+}
+function checkWithVideo(url, startTime, resolveCallback) {
+  var testVideo = document.createElement('video');
+  testVideo.muted = true;
+  testVideo.preload = 'metadata';
+  var settled = false;
+  var done = function done(status, note) {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    try {
+      testVideo.pause();
+      testVideo.removeAttribute('src');
+      testVideo.load();
+    } catch (_) {}
+    resolveCallback({
+      status: status,
+      latency: Date.now() - startTime,
+      note: note || ''
+    });
+  };
+  var timeout = setTimeout(function () {
+    done('timeout', '超時');
+  }, 5000);
+  testVideo.addEventListener('loadedmetadata', function () {
+    done('ok', '已取得媒體資料');
+  }, {
+    once: true
+  });
+  testVideo.addEventListener('canplay', function () {
+    done('ok', '可以播放');
+  }, {
+    once: true
+  });
+  testVideo.addEventListener('error', function () {
+    done('fail', '格式或網絡錯誤');
+  }, {
+    once: true
+  });
+  try {
+    testVideo.src = url;
+    testVideo.load();
+  } catch (_) {
+    done('fail', '無法建立測試');
+  }
+}
+function checkAllChannels() {
+  return _checkAllChannels.apply(this, arguments);
+} // ===================================================================
+// 頻道列表渲染
+// ===================================================================
+function _checkAllChannels() {
+  _checkAllChannels = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4() {
+    var version, concurrency, cursor, completed, renderQueued, queueRender, worker, _worker, total, valid, invalid, timeout;
+    return _regenerator().w(function (_context4) {
+      while (1) switch (_context4.n) {
+        case 0:
+          _worker = function _worker3() {
+            _worker = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
+              var index, channel, result;
+              return _regenerator().w(function (_context3) {
+                while (1) switch (_context3.n) {
+                  case 0:
+                    if (!(cursor < parsedChannels.length)) {
+                      _context3.n = 3;
+                      break;
+                    }
+                    index = cursor++;
+                    channel = parsedChannels[index];
+                    _context3.n = 1;
+                    return checkChannel(channel.url);
+                  case 1:
+                    result = _context3.v;
+                    if (!(version !== playlistProbeVersion && playlistProbeVersion)) {
+                      _context3.n = 2;
+                      break;
+                    }
+                    return _context3.a(2);
+                  case 2:
+                    channelStatuses[channel.url] = result;
+                    completed += 1;
+                    queueRender();
+                    if (completed === 1 || completed === parsedChannels.length || completed % 5 === 0) {
+                      setStatus('正在檢查：' + completed + '/' + parsedChannels.length + '；✅ ' + Object.values(channelStatuses).filter(function (item) {
+                        return item.status === 'ok';
+                      }).length + ' 有效');
+                    }
+                    _context3.n = 0;
+                    break;
+                  case 3:
+                    return _context3.a(2);
+                }
+              }, _callee3);
+            }));
+            return _worker.apply(this, arguments);
+          };
+          worker = function _worker2() {
+            return _worker.apply(this, arguments);
+          };
+          queueRender = function _queueRender() {
+            if (renderQueued) return;
+            renderQueued = true;
+            setTimeout(function () {
+              renderQueued = false;
+              renderChannelList();
+            }, 80);
+          };
+          if (!(parsedChannels.length === 0)) {
+            _context4.n = 1;
+            break;
+          }
+          setStatus('請先解析清單');
+          return _context4.a(2);
+        case 1:
+          version = Date.now();
+          setStatus('正在並行檢測 ' + parsedChannels.length + ' 個頻道……');
+          channelStatuses = {};
+          parsedChannels.forEach(function (ch) {
+            channelStatuses[ch.url] = {
+              status: 'checking',
+              latency: null
+            };
+          });
+          renderChannelList();
+          concurrency = 6;
+          cursor = 0;
+          completed = 0;
+          renderQueued = false;
+          playlistProbeVersion = version;
+          _context4.n = 2;
+          return Promise.all(Array.from({
+            length: Math.min(concurrency, parsedChannels.length)
+          }, worker));
+        case 2:
+          renderChannelList();
+          total = parsedChannels.length;
+          valid = Object.values(channelStatuses).filter(function (item) {
+            return item.status === 'ok';
+          }).length;
+          invalid = Object.values(channelStatuses).filter(function (item) {
+            return item.status === 'fail';
+          }).length;
+          timeout = Object.values(channelStatuses).filter(function (item) {
+            return item.status === 'timeout';
+          }).length;
+          setStatus('檢查完成：✅ ' + valid + ' 有效；❌ ' + invalid + ' 無效；⌛ ' + timeout + ' 超時；共 ' + total + ' 個。');
+        case 3:
+          return _context4.a(2);
+      }
+    }, _callee4);
+  }));
+  return _checkAllChannels.apply(this, arguments);
+}
+function escapeHtml(text) {
+  return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+function renderChannelList() {
+  var total = parsedChannels.length;
+  var statuses = Object.values(channelStatuses);
+  var checked = statuses.filter(function (item) {
+    return item.status !== 'checking' && item.status !== 'pending';
+  }).length;
+  var valid = statuses.filter(function (item) {
+    return item.status === 'ok';
+  }).length;
+  var invalid = statuses.filter(function (item) {
+    return item.status === 'fail';
+  }).length;
+  var timeout = statuses.filter(function (item) {
+    return item.status === 'timeout';
+  }).length;
+  var pending = total - checked - statuses.filter(function (item) {
+    return item.status === 'checking';
+  }).length;
+  playlistCard.style.display = total ? 'grid' : 'none';
+  playlistSummary.textContent = total ? '共 ' + total + ' 個｜✅ 有效 ' + valid + '｜❌ 無效 ' + invalid + '｜⌛ 超時 ' + timeout + '｜🔄 檢查中 ' + (total - valid - invalid - timeout) + '；延遲為首次回應時間' : '未有清單。';
+  playlistList.innerHTML = '';
+  parsedChannels.forEach(function (ch, idx) {
+    var st = channelStatuses[ch.url] || {
+      status: 'pending',
+      latency: null
+    };
+    if (showOnlyValid && st.status !== 'ok') return;
+    var icon = '⏳',
+      badgeClass = 'pending',
+      label = '待檢查';
+    if (st.status === 'checking') {
+      icon = '🔄';
+      label = '檢查中';
+    }
+    if (st.status === 'ok') {
+      icon = '✅';
+      badgeClass = 'ok';
+      label = '有效' + (Number.isFinite(st.latency) ? ' · ' + st.latency + ' ms' : '');
+    }
+    if (st.status === 'fail') {
+      icon = '❌';
+      badgeClass = 'fail';
+      label = '無效';
+    }
+    if (st.status === 'timeout') {
+      icon = '⌛';
+      badgeClass = 'fail';
+      label = '超時' + (Number.isFinite(st.latency) ? ' · ' + st.latency + ' ms' : '');
+    }
+    var button = document.createElement('button');
+    button.className = 'playlist-item' + (idx === current.activeIndex ? ' active' : '');
+    button.type = 'button';
+    button.innerHTML = '<div class="playlist-name">' + (idx + 1) + '. ' + escapeHtml(ch.name || '未命名') + '</div>' + '<div class="playlist-url">' + escapeHtml(ch.url) + '</div>' + '<div class="playlist-meta"><span class="probe-badge ' + badgeClass + '">' + icon + ' ' + label + '</span></div>';
+    button.addEventListener('click', function () {
+      selectChannel(idx);
+    });
+    playlistList.appendChild(button);
+  });
+}
+function selectChannel(idx) {
+  var ch = parsedChannels[idx];
+  if (!ch) return;
+  current.activeIndex = idx;
+  sourceInput.value = ch.url;
+  renderChannelList();
+  loadVideo(ch.url);
+}
+function toggleFilter() {
+  showOnlyValid = !showOnlyValid;
+  filterBtn.textContent = showOnlyValid ? '顯示全部' : '只顯示有效';
+  filterBtn.classList.toggle('active', showOnlyValid);
+  renderChannelList();
+}
+
+// ===================================================================
+// 播放列表項（從M3U解析的頻道中選擇）
+// ===================================================================
+function playPlaylistItem(_x2) {
+  return _playPlaylistItem.apply(this, arguments);
+} // ===================================================================
+// 清空
+// ===================================================================
+function _playPlaylistItem() {
+  _playPlaylistItem = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee5(index) {
+    var item;
+    return _regenerator().w(function (_context5) {
+      while (1) switch (_context5.n) {
+        case 0:
+          item = parsedChannels[index];
+          if (item) {
+            _context5.n = 1;
+            break;
+          }
+          return _context5.a(2);
+        case 1:
+          current.activeIndex = index;
+          sourceInput.value = item.url;
+          renderChannelList();
+          loadVideo(item.url);
+          setStatus('正在播放：' + (item.name || item.url));
+        case 2:
+          return _context5.a(2);
+      }
+    }, _callee5);
+  }));
+  return _playPlaylistItem.apply(this, arguments);
+}
+function clearAll() {
+  cleanupHls();
+  current.src = '';
+  current.playlist = [];
+  current.activeIndex = -1;
+  parsedChannels = [];
+  channelStatuses = {};
+  sourceInput.value = '';
+  playlistCard.style.display = 'none';
+  playlistList.innerHTML = '';
+  image.removeAttribute('src');
+  video.removeAttribute('src');
+  audio.removeAttribute('src');
+  video.load();
+  audio.load();
+  setMode('idle');
+  updateEngineLabel('待命');
+  currentTimeLabel.textContent = '00:00:00';
+  durationTimeLabel.textContent = '00:00:00';
+  progressBar.value = '0';
+  setStatus('已清空。');
+  showOnly('');
+}
+
+// ===================================================================
+// 事件綁定
+// ===================================================================
+loadBtn.addEventListener('click', function () {
+  loadVideo();
+});
+parseBtn.addEventListener('click', function () {
+  parseM3U();
+});
+sniffBtn.addEventListener('click', function () {
+  sniffWebpage();
+});
+refreshBtn.addEventListener('click', function () {
+  var url = sourceInput.value.trim();
+  if (url) loadVideo(url);else video.load();
+});
+clearBtn.addEventListener('click', clearAll);
+hidePlaylistBtn.addEventListener('click', function () {
+  playlistCard.style.display = 'none';
+});
+filterBtn.addEventListener('click', toggleFilter);
+checkAllBtn.addEventListener('click', function () {
+  checkAllChannels();
+});
+sourceInput.addEventListener('keydown', function (event) {
+  if (event.key === 'Enter') loadVideo();
+});
+progressBar.addEventListener('input', function () {
+  var media = getActiveMedia();
+  if (!media || !Number.isFinite(media.duration) || media.duration <= 0) return;
+  var ratio = Number(progressBar.value) / Number(progressBar.max || 1000);
+  var target = ratio * media.duration;
+  if (typeof media.fastSeek === 'function') {
+    try {
+      media.fastSeek(target);
+    } catch (_) {
+      media.currentTime = target;
+    }
+  } else {
+    media.currentTime = target;
+  }
+  media.play().catch(function () {});
+});
+jumpBtn.addEventListener('click', function () {
+  var h = Number.parseInt(jumpHours.value || '0', 10) || 0;
+  var m = Number.parseInt(jumpMinutes.value || '0', 10) || 0;
+  var s = Number.parseInt(jumpSeconds.value || '0', 10) || 0;
+  var total = h * 3600 + m * 60 + s;
+  var media = getActiveMedia();
+  if (!media || !Number.isFinite(media.duration)) {
+    setStatus('請先載入媒體');
+    return;
+  }
+  if (total > media.duration) {
+    setStatus('超出媒體範圍');
+    return;
+  }
+  if (typeof media.fastSeek === 'function') {
+    try {
+      media.fastSeek(total);
+    } catch (_) {
+      media.currentTime = total;
+    }
+  } else {
+    media.currentTime = total;
+  }
+  media.play().catch(function () {});
+  setStatus('已跳轉到 ' + formatTime(total));
+});
+zoomBtn.addEventListener('click', function () {
+  applyZoom(zoomInput.value);
+});
+toggleBtn.addEventListener('click', function () {
+  var media = getActiveMedia();
+  if (!media) return;
+  if (media.paused || media.ended) media.play().catch(function () {});else media.pause();
+});
+
+// 背景按鈕
+document.querySelectorAll('[data-bg]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    applyBackground(button.getAttribute('data-bg') || '#000', button.getAttribute('data-fg') || '#f5f7fa');
+  });
+});
+
+// 倍速按鈕
+document.querySelectorAll('[data-speed]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    setSpeed(Number(button.dataset.speed || 1), button);
+  });
+});
+
+// 快進/倒退按鈕
+document.querySelectorAll('[data-skip]').forEach(function (button) {
+  button.addEventListener('click', function () {
+    skipBy(Number(button.dataset.skip || 0));
+  });
+});
+
+// 視頻事件
+[video, audio].forEach(function (media) {
+  media.addEventListener('timeupdate', function () {
+    if (media === video) {
+      if (Number.isFinite(media.duration) && media.duration > 0) {
+        progressBar.value = String(Math.round(media.currentTime / media.duration * 1000));
+        currentTimeLabel.textContent = formatTime(media.currentTime);
+        durationTimeLabel.textContent = formatTime(media.duration);
+      } else {
+        currentTimeLabel.textContent = formatTime(media.currentTime);
+        durationTimeLabel.textContent = 'LIVE';
+      }
+    }
+  });
+  media.addEventListener('loadedmetadata', function () {
+    if (Number.isFinite(media.duration) && media.duration > 0) {
+      durationTimeLabel.textContent = formatTime(media.duration);
+    }
+    if (media === video) {
+      requestAnimationFrame(refitCurrentMedia);
+      setTimeout(refitCurrentMedia, 80);
+    }
+    applySpeedOnPlay();
+  });
+  media.addEventListener('play', function () {
+    toggleBtn.textContent = '暫停';
+    applySpeedOnPlay();
+  });
+  media.addEventListener('playing', function () {
+    toggleBtn.textContent = '暫停';
+    applySpeedOnPlay();
+    updateSpeedDisplay();
+  });
+  media.addEventListener('canplay', function () {
+    applySpeedOnPlay();
+  });
+  media.addEventListener('pause', function () {
+    toggleBtn.textContent = '繼續';
+  });
+  media.addEventListener('ratechange', function () {
+    current.speed = media.playbackRate || current.speed;
+    updateSpeedDisplay();
+  });
+  media.addEventListener('ended', function () {
+    toggleBtn.textContent = '繼續';
+  });
+  media.addEventListener('error', function () {
+    var err = media.error;
+    if (err) {
+      var msgs = {
+        1: '播放已中止',
+        2: '網絡錯誤',
+        3: '解碼錯誤',
+        4: '不支援的格式'
+      };
+      setStatus(err ? msgs[err.code] || '播放失敗' : '播放失敗');
+    }
+  });
+});
+image.addEventListener('load', function () {
+  fitMediaFrame(image.naturalWidth, image.naturalHeight);
+  setStatus('圖片已載入。');
+});
+image.addEventListener('error', function () {
+  setStatus('圖片載入失敗。');
+});
+video.addEventListener('resize', refitCurrentMedia);
+video.addEventListener('loadeddata', function () {
+  requestAnimationFrame(refitCurrentMedia);
+  setTimeout(refitCurrentMedia, 250);
+});
+video.addEventListener('durationchange', refitCurrentMedia);
+
+// Enter key 綁定
+[jumpHours, jumpMinutes, jumpSeconds].forEach(function (input) {
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') jumpBtn.click();
+  });
+});
+zoomInput.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') zoomBtn.click();
+});
+
+// ===================================================================
+// 初始化
+// ===================================================================
+window.addEventListener('load', function () {
+  video.playbackRate = currentSpeed;
+  var info = typeof Hls !== 'undefined' && Hls.isSupported() ? 'HLS.js ✅' : nativeHlsAvailable() ? '原生 HLS ⚠️' : '⚠️';
+  updateEngineLabel(info);
+});
+setMode('idle');
+updateEngineLabel('待命');
+applyZoom(100, false);
+function fitMediaFrame(sourceWidth, sourceHeight) {
+  var _window$visualViewpor;
+  if (!mediaWrap || !sourceWidth || !sourceHeight) return;
+  var ratio = Number(sourceWidth) / Number(sourceHeight);
+  if (!Number.isFinite(ratio) || ratio <= 0) return;
+  var parentWidth = mediaWrap.parentElement ? mediaWrap.parentElement.clientWidth : window.innerWidth;
+  var viewportHeight = ((_window$visualViewpor = window.visualViewport) === null || _window$visualViewpor === void 0 ? void 0 : _window$visualViewpor.height) || document.documentElement.clientHeight || window.innerHeight;
+  var top = Math.max(0, mediaWrap.getBoundingClientRect().top);
+  var bottomPadding = 8;
+  var availableWidth = Math.max(160, parentWidth || window.innerWidth);
+  var availableHeight = Math.max(160, viewportHeight - top - bottomPadding);
+  var width = Math.min(availableWidth, availableHeight * ratio);
+  var height = width / ratio;
+  mediaWrap.style.width = "".concat(Math.max(1, Math.round(width)), "px");
+  mediaWrap.style.height = "".concat(Math.max(1, Math.round(height)), "px");
+  mediaWrap.style.minHeight = '0';
+  mediaWrap.style.aspectRatio = "".concat(sourceWidth, " / ").concat(sourceHeight);
+}
+function resetMediaFrame() {
+  var _window$visualViewpor2;
+  if (!mediaWrap) return;
+  var width = Math.max(160, mediaWrap.parentElement ? mediaWrap.parentElement.clientWidth : window.innerWidth);
+  var viewportHeight = ((_window$visualViewpor2 = window.visualViewport) === null || _window$visualViewpor2 === void 0 ? void 0 : _window$visualViewpor2.height) || document.documentElement.clientHeight || window.innerHeight;
+  var top = Math.max(0, mediaWrap.getBoundingClientRect().top);
+  var height = Math.max(160, Math.min(width * 9 / 16, viewportHeight - top - 8));
+  mediaWrap.style.width = "".concat(Math.round(Math.min(width, height * 16 / 9)), "px");
+  mediaWrap.style.height = "".concat(Math.round(height), "px");
+  mediaWrap.style.minHeight = '0';
+  mediaWrap.style.aspectRatio = '16 / 9';
+}
+function refitCurrentMedia() {
+  if (current.type === 'image' && image.naturalWidth && image.naturalHeight) {
+    fitMediaFrame(image.naturalWidth, image.naturalHeight);
+  } else if (video.videoWidth && video.videoHeight) {
+    fitMediaFrame(video.videoWidth, video.videoHeight);
+  } else {
+    resetMediaFrame();
+  }
+}
+window.addEventListener('resize', refitCurrentMedia);
+(_window$visualViewpor3 = window.visualViewport) === null || _window$visualViewpor3 === void 0 ? void 0 : _window$visualViewpor3.addEventListener('resize', refitCurrentMedia);
+  </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f7a3268ea56841db8cf028773ac41ab7"}' crossorigin="anonymous"></script>
+</body>
+</html>
