@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M3U 管理工具</title>
+
+  <style>
+    /* =========================================================
+       基本色彩與共用設定
+       這個工具不依賴任何外部 CSS，離線開啟亦可正常使用。
+       ========================================================= */
+    :root {
+      --bg: #f3f6fa;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --border: #d8e0ea;
+      --border-strong: #b9c6d5;
+      --text: #1f2937;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #15803d;
+      --danger: #dc2626;
+      --danger-dark: #b91c1c;
+      --warning-bg: #fff7ed;
+      --warning-text: #9a3412;
+      --shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
+      --radius: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app-shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    /* =========================================================
+       頁首
+       ========================================================= */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .page-title {
+      margin: 0;
+      color: #172033;
+      font-size: clamp(25px, 4vw, 34px);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .page-subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .offline-badge {
+      flex: 0 0 auto;
+      padding: 7px 11px;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      background: #f0fdf4;
+      color: var(--success);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    /* =========================================================
+       卡片、工具列與表單
+       ========================================================= */
+    .card {
+      margin-bottom: 18px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      margin: 0 0 14px;
+      color: #263349;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+
+    .file-label,
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 9px 15px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .file-label,
+    .button-primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .file-label:hover,
+    .button-primary:hover {
+      border-color: var(--primary-dark);
+      background: var(--primary-dark);
+    }
+
+    .button-secondary {
+      border-color: var(--border-strong);
+      background: #ffffff;
+      color: #334155;
+    }
+
+    .button-secondary:hover {
+      border-color: #94a3b8;
+      background: #f8fafc;
+    }
+
+    .button-danger {
+      border-color: #fecaca;
+      background: #fff1f2;
+      color: var(--danger-dark);
+    }
+
+    .button-danger:hover {
+      border-color: #fca5a5;
+      background: #fee2e2;
+    }
+
+    .button-small {
+      min-height: 32px;
+      padding: 5px 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .file-name {
+      min-width: 150px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-message {
+      min-height: 22px;
+      margin: 13px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .status-message.success {
+      color: var(--success);
+    }
+
+    .status-message.error {
+      color: var(--danger-dark);
+    }
+
+    .status-message.warning {
+      color: var(--warning-text);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: minmax(180px, 0.8fr) minmax(260px, 1.5fr) auto;
+      align-items: end;
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      color: #475569;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .text-input {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 11px;
+      border: 1px solid var(--border-strong);
+      border-radius: 7px;
+      outline: none;
+      background: #ffffff;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+
+    .search-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 13px;
+    }
+
+    .search-row .text-input {
+      max-width: 460px;
+    }
+
+    .count-text {
+      color: var(--muted);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    /* =========================================================
+       頻道表格
+       使用獨立滾動區，避免頻道很多時整個頁面過長。
+       ========================================================= */
+    .table-wrapper {
+      max-height: 560px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .channel-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+      background: #ffffff;
+    }
+
+    .channel-table th,
+    .channel-table td {
+      padding: 11px 13px;
+      border-bottom: 1px solid #e8edf3;
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    .channel-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #eef3f8;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .channel-table tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .channel-table tbody tr:hover {
+      background: #f8fbff;
+    }
+
+    .name-cell {
+      width: 25%;
+      min-width: 170px;
+      font-weight: 600;
+    }
+
+    .url-cell {
+      width: auto;
+      color: #475569;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .actions-cell {
+      width: 150px;
+      white-space: nowrap;
+      text-align: right !important;
+    }
+
+    .actions-cell .button + .button {
+      margin-left: 6px;
+    }
+
+    .edit-input {
+      min-width: 0;
+      min-height: 34px;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
+
+    .empty-row td {
+      padding: 38px 16px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .export-row {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    .helper-text {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        width: min(100% - 20px, 1180px);
+        padding-top: 18px;
+      }
+
+      .page-header {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .card {
+        padding: 15px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid .button {
+        width: 100%;
+      }
+
+      .search-row {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .search-row .text-input {
+        max-width: none;
+      }
+
+      .export-row .button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <!-- 頁首：工具名稱與離線提示 -->
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">M3U 管理工具</h1>
+        <p class="page-subtitle">在瀏覽器本地管理、編輯及匯出 IPTV 頻道清單</p>
+      </div>
+      <div class="offline-badge">● 完全離線運作</div>
+    </header>
+
+    <!-- 匯入區：瀏覽器只會讀取使用者主動選擇的本地檔案 -->
+    <section class="card" aria-labelledby="import-title">
+      <h2 id="import-title" class="card-title">匯入 M3U</h2>
+      <div class="toolbar">
+        <input id="m3u-file" class="file-input" type="file" accept=".m3u,.m3u8,text/plain">
+        <label for="m3u-file" class="file-label">選擇檔案</label>
+        <span id="file-name" class="file-name">尚未選擇檔案</span>
+      </div>
+      <p id="status-message" class="status-message" role="status" aria-live="polite">請選擇一個 M3U 檔案開始使用。</p>
+    </section>
+
+    <!-- 新增區：新增的頻道只會保留在目前瀏覽器頁面的記憶體中 -->
+    <section class="card" aria-labelledby="add-title">
+      <h2 id="add-title" class="card-title">新增頻道</h2>
+      <form id="add-form" class="form-grid">
+        <div class="field">
+          <label for="channel-name">頻道名稱</label>
+          <input id="channel-name" class="text-input" type="text" maxlength="200" placeholder="例如：CCTV-1" autocomplete="off" required>
+        </div>
+        <div class="field">
+          <label for="channel-url">M3U8 地址</label>
+          <input id="channel-url" class="text-input" type="text" maxlength="2000" placeholder="例如：https://example.com/live.m3u8" autocomplete="off" required>
+        </div>
+        <button class="button button-primary" type="submit">新增</button>
+      </form>
+      <p class="helper-text">頻道名稱不分大小寫檢查重複；網址可支援一般 IPTV 播放器使用的地址格式。</p>
+    </section>
+
+    <!-- 頻道列表區：搜尋、數量及表格都在此處更新 -->
+    <section class="card" aria-labelledby="list-title">
+      <h2 id="list-title" class="card-title">頻道列表</h2>
+      <div class="search-row">
+        <input id="search-input" class="text-input" type="search" placeholder="搜尋頻道名稱..." autocomplete="off">
+        <span id="count-text" class="count-text">已載入 0 個頻道</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="channel-table">
+          <thead>
+            <tr>
+              <th scope="col">名稱</th>
+              <th scope="col">M3U8 地址</th>
+              <th scope="col" class="actions-cell">操作</th>
+            </tr>
+          </thead>
+          <tbody id="channel-tbody">
+            <!-- JavaScript 會在這裡建立頻道資料列 -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="export-row">
+        <button id="export-button" class="button button-primary" type="button">下載新的 playlist.m3u</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    /* =========================================================
+       M3U 管理工具：所有資料、解析、畫面更新及下載功能都在此檔案內。
+       不使用任何第三方框架，也不會發送網路請求。
+       ========================================================= */
+
+    // 頻道資料的記憶體結構。每項資料包含：名稱與 M3U8 地址。
+    let channels = [];
+
+    // 目前正在編輯的頻道索引；沒有編輯時為 null。
+    let editingIndex = null;
+
+    // 取得頁面上的常用元素，集中管理令程式碼更容易閱讀。
+    const fileInput = document.getElementById("m3u-file");
+    const fileNameElement = document.getElementById("file-name");
+    const statusElement = document.getElementById("status-message");
+    const addForm = document.getElementById("add-form");
+    const channelNameInput = document.getElementById("channel-name");
+    const channelUrlInput = document.getElementById("channel-url");
+    const searchInput = document.getElementById("search-input");
+    const countElement = document.getElementById("count-text");
+    const tableBody = document.getElementById("channel-tbody");
+    const exportButton = document.getElementById("export-button");
+
+    /* ---------------------------------------------------------
+       小工具函式
+       --------------------------------------------------------- */
+
+    // 設定頁面上的提示文字。type 可為一般、成功、錯誤或警告。
+    function setStatus(message, type = "") {
+      statusElement.textContent = message;
+      statusElement.className = `status-message${type ? ` ${type}` : ""}`;
+    }
+
+    // 名稱重複檢查採用不分大小寫方式，並忽略前後空格。
+    function normalizedName(name) {
+      return name.trim().toLocaleLowerCase();
+    }
+
+    // 建立按鈕，避免把使用者輸入直接拼入 innerHTML，提升穩定性及安全性。
+    function createButton(text, className, clickHandler) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.className = `button button-small ${className}`;
+      button.addEventListener("click", clickHandler);
+      return button;
+    }
+
+    /* ---------------------------------------------------------
+       M3U 解析
+       --------------------------------------------------------- */
+
+    /**
+     * 解析標準 M3U 文字。
+     *
+     * 常見格式為：
+     *   #EXTM3U
+     *   #EXTINF:-1,頻道名稱
+     *   https://example.com/live.m3u8
+     *
+     * 這裡會將每個 #EXTINF 與其後第一個有效地址配對。
+     * 其他標籤（例如 #EXTGRP）會被忽略，故可處理一般 IPTV 播放清單。
+     */
+    function parseM3U(text) {
+      // 移除 UTF-8 BOM，並統一不同作業系統的換行格式。
+      const lines = text
+        .replace(/^\uFEFF/, "")
+        .replace(/\r\n?/g, "\n")
+        .split("\n");
+
+      const parsedChannels = [];
+      let pendingName = null;
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        // 空白行不包含資料，直接跳過。
+        if (!line) {
+          continue;
+        }
+
+        // #EXTINF 的逗號後方就是頻道顯示名稱。
+        if (line.toUpperCase().startsWith("#EXTINF:")) {
+          const commaIndex = line.indexOf(",");
+          if (commaIndex >= 0) {
+            pendingName = line.slice(commaIndex + 1).trim();
+          } else {
+            pendingName = "";
+          }
+          continue;
+        }
+
+        // 其他 # 開頭內容是 M3U 標籤，不是地址。
+        if (line.startsWith("#")) {
+          continue;
+        }
+
+        // 只有在先前找到 #EXTINF 名稱時，才將這一行當作頻道地址。
+        if (pendingName !== null) {
+          const name = pendingName || "未命名頻道";
+          parsedChannels.push({ name, url: line });
+          pendingName = null;
+        }
+      }
+
+      return parsedChannels;
+    }
+
+    /* ---------------------------------------------------------
+       匯入功能
+       --------------------------------------------------------- */
+
+    // 使用者選擇檔案後，File API 只在本地讀取檔案內容。
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        return;
+      }
+
+      fileNameElement.textContent = file.name;
+      setStatus("正在讀取檔案...", "");
+
+      try {
+        const text = await file.text();
+        const parsedChannels = parseM3U(text);
+
+        channels = parsedChannels;
+        editingIndex = null;
+        renderChannels();
+
+        if (parsedChannels.length > 0) {
+          setStatus(`匯入完成，共讀取 ${parsedChannels.length} 個頻道。`, "success");
+        } else {
+          setStatus("檔案已讀取，但找不到有效的 #EXTINF 頻道資料。", "warning");
+        }
+      } catch (error) {
+        // 讀取失敗時清空資料，避免畫面顯示舊內容造成誤會。
+        channels = [];
+        editingIndex = null;
+        renderChannels();
+        setStatus("讀取檔案失敗，請確認檔案格式及編碼。", "error");
+      }
+    });
+
+    /* ---------------------------------------------------------
+       畫面顯示
+       --------------------------------------------------------- */
+
+    // 根據搜尋文字過濾頻道。搜尋只針對頻道名稱，不會搜尋網址。
+    function getFilteredChannels() {
+      const keyword = searchInput.value.trim().toLocaleLowerCase();
+      if (!keyword) {
+        return channels.map((channel, index) => ({ channel, index }));
+      }
+
+      return channels
+        .map((channel, index) => ({ channel, index }))
+        .filter(({ channel }) => channel.name.toLocaleLowerCase().includes(keyword));
+    }
+
+    // 將目前 channels 陣列重新畫到表格中。
+    function renderChannels() {
+      tableBody.replaceChildren();
+
+      const filteredChannels = getFilteredChannels();
+      countElement.textContent = searchInput.value.trim()
+        ? `顯示 ${filteredChannels.length} / ${channels.length} 個頻道`
+        : `已載入 ${channels.length} 個頻道`;
+
+      if (filteredChannels.length === 0) {
+        const row = document.createElement("tr");
+        row.className = "empty-row";
+        const cell = document.createElement("td");
+        cell.colSpan = 3;
+        cell.textContent = channels.length === 0 ? "目前沒有頻道，請先匯入或新增頻道。" : "找不到符合搜尋條件的頻道。";
+        row.appendChild(cell);
+        tableBody.appendChild(row);
+        return;
+      }
+
+      for (const { channel, index } of filteredChannels) {
+        if (editingIndex === index) {
+          const editingRow = createEditingRow(channel, index);
+          tableBody.appendChild(editingRow.row);
+        } else {
+          tableBody.appendChild(createChannelRow(channel, index));
+        }
+      }
+    }
+
+    // 建立一般顯示列，所有文字都使用 textContent 寫入，避免特殊字元破壞 HTML。
+    function createChannelRow(channel, index) {
+      const row = document.createElement("tr");
+
+      const nameCell = document.createElement("td");
+      nameCell.className = "name-cell";
+      nameCell.textContent = channel.name;
+
+      const urlCell = document.createElement("td");
+      urlCell.className = "url-cell";
+      urlCell.textContent = channel.url;
+
+      const actionsCell = document.createElement("td");
+      actionsCell.className = "actions-cell";
+      actionsCell.appendChild(createButton("編輯", "button-secondary", () => beginEdit(index)));
+      actionsCell.appendChild(createButton("刪除", "button-danger", () => deleteChannel(index)));
+
+      row.append(nameCell, urlCell, actionsCell);
+      return row;
+    }
+
+    // 建立編輯中的資料列：兩個輸入框加上儲存及取消按鈕。
+    function createEditingRow(channel, index) {
+      const row = document.createElement("tr");
+
+      const nameCell = document.createElement("td");
+      nameCell.className = "name-cell";
+      const nameInput = document.createElement("input");
+      nameInput.className = "text-input edit-input";
+      nameInput.type = "text";
+      nameInput.maxLength = 200;
+      nameInput.value = channel.name;
+      nameInput.setAttribute("aria-label", "編輯頻道名稱");
+      nameCell.appendChild(nameInput);
+
+      const urlCell = document.createElement("td");
+      urlCell.className = "url-cell";
+      const urlInput = document.createElement("input");
+      urlInput.className = "text-input edit-input";
+      urlInput.type = "text";
+      urlInput.maxLength = 2000;
+      urlInput.value = channel.url;
+      urlInput.setAttribute("aria-label", "編輯 M3U8 地址");
+      urlCell.appendChild(urlInput);
+
+      const actionsCell = document.createElement("td");
+      actionsCell.className = "actions-cell";
+      actionsCell.appendChild(createButton("儲存", "button-primary", () => saveEdit(index, nameInput, urlInput)));
+      actionsCell.appendChild(createButton("取消", "button-secondary", cancelEdit));
+
+      row.append(nameCell, urlCell, actionsCell);
+      return { row, nameInput };
+    }
+
+    // 開始編輯前先取消其他編輯狀態，確保畫面只存在一個編輯列。
+    function beginEdit(index) {
+      if (!channels[index]) {
+        return;
+      }
+
+      editingIndex = index;
+      renderChannels();
+
+      const editingRow = Array.from(tableBody.querySelectorAll("tr")).find((row) => {
+        return row.querySelector(".edit-input") !== null;
+      });
+      if (editingRow) {
+        const input = editingRow.querySelector("input");
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }
+    }
+
+    // 儲存編輯內容，同樣檢查空白及重複名稱。
+    function saveEdit(index, nameInput, urlInput) {
+      const name = nameInput.value.trim();
+      const url = urlInput.value.trim();
+
+      if (!name || !url) {
+        alert("頻道名稱及 M3U8 地址不可留空。");
+        return;
+      }
+
+      const duplicate = channels.some((channel, channelIndex) => {
+        return channelIndex !== index && normalizedName(channel.name) === normalizedName(name);
+      });
+
+      if (duplicate) {
+        alert("這個頻道名稱已存在，請使用其他名稱。");
+        return;
+      }
+
+      channels[index] = { name, url };
+      editingIndex = null;
+      renderChannels();
+      setStatus(`已更新頻道「${name}」。`, "success");
+    }
+
+    // 取消編輯，不改變原本資料。
+    function cancelEdit() {
+      editingIndex = null;
+      renderChannels();
+    }
+
+    // 刪除前使用瀏覽器確認視窗，避免誤刪。
+    function deleteChannel(index) {
+      const channel = channels[index];
+      if (!channel) {
+        return;
+      }
+
+      const confirmed = window.confirm(`確定要刪除頻道「${channel.name}」嗎？`);
+      if (!confirmed) {
+        return;
+      }
+
+      channels.splice(index, 1);
+      editingIndex = null;
+      renderChannels();
+      setStatus(`已刪除頻道「${channel.name}」。`, "success");
+    }
+
+    /* ---------------------------------------------------------
+       新增功能與搜尋功能
+       --------------------------------------------------------- */
+
+    addForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const name = channelNameInput.value.trim();
+      const url = channelUrlInput.value.trim();
+
+      if (!name || !url) {
+        alert("頻道名稱及 M3U8 地址不可留空。");
+        return;
+      }
+
+      const duplicate = channels.some((channel) => normalizedName(channel.name) === normalizedName(name));
+      if (duplicate) {
+        alert("這個頻道名稱已存在，不允許重複新增。");
+        channelNameInput.focus();
+        return;
+      }
+
+      channels.push({ name, url });
+      editingIndex = null;
+      renderChannels();
+      addForm.reset();
+      channelNameInput.focus();
+      setStatus(`已新增頻道「${name}」。`, "success");
+    });
+
+    searchInput.addEventListener("input", () => {
+      // 搜尋時取消編輯狀態，避免編輯列因篩選而消失。
+      editingIndex = null;
+      renderChannels();
+    });
+
+    /* ---------------------------------------------------------
+       匯出功能
+       --------------------------------------------------------- */
+
+    /**
+     * 將目前頻道陣列生成標準 M3U 文字。
+     * 使用 UTF-8 BOM，令部分 Windows IPTV 工具更容易正確顯示中文名稱。
+     */
+    function buildM3U() {
+      const lines = ["#EXTM3U"];
+
+      for (const channel of channels) {
+        lines.push(`#EXTINF:-1,${channel.name}`);
+        lines.push(channel.url);
+      }
+
+      return `\uFEFF${lines.join("\n")}\n`;
+    }
+
+    // 透過 Blob 與暫時下載連結，把內容儲存為固定檔名 playlist.m3u。
+    exportButton.addEventListener("click", () => {
+      if (channels.length === 0) {
+        alert("目前沒有頻道可以匯出，請先匯入或新增頻道。");
+        return;
+      }
+
+      const blob = new Blob([buildM3U()], { type: "audio/x-mpegurl;charset=utf-8" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "playlist.m3u";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+      setStatus("已生成並下載 playlist.m3u。", "success");
+    });
+
+    /* ---------------------------------------------------------
+       初始畫面
+       --------------------------------------------------------- */
+    renderChannels();
+  </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f7a3268ea56841db8cf028773ac41ab7"}' crossorigin="anonymous"></script>
+</body>
+</html>
