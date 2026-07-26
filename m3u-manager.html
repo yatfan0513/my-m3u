@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="離線 M3U 播放清單管理工具">
+  <title>M3U 播放清單管理工具</title>
+  <style>
+    /* ==================== 基本色彩及全域設定 ==================== */
+    :root {
+      --背景色: #1f1e33;
+      --卡片色: rgba(43, 42, 72, 0.88);
+      --卡片色深: rgba(31, 30, 51, 0.78);
+      --邊框色: rgba(255, 255, 255, 0.13);
+      --文字色: #f7f7ff;
+      --次要文字色: #bdbbd3;
+      --主色: #6ee7ff;
+      --主色深: #278da9;
+      --成功色: #56e39f;
+      --警告色: #ffd166;
+      --錯誤色: #ff7185;
+      --陰影: 0 18px 50px rgba(0, 0, 0, 0.26);
+      --圓角: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 320px;
+      background: var(--背景色);
+      color-scheme: dark;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #1f1e33;
+      color: var(--文字色);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      line-height: 1.55;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    button,
+    input,
+    textarea,
+    select,
+    .拖曳區 {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 10px 16px;
+      color: #111326;
+      background: var(--主色);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 160ms ease, filter 160ms ease, opacity 160ms ease, background 160ms ease;
+    }
+
+    button:hover:not(:disabled) {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid rgba(110, 231, 255, 0.45);
+      outline-offset: 2px;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
+    .次要按鈕 {
+      color: var(--文字色);
+      background: rgba(255, 255, 255, 0.09);
+      border-color: var(--邊框色);
+    }
+
+    .危險按鈕 {
+      color: #fff;
+      background: rgba(255, 113, 133, 0.18);
+      border-color: rgba(255, 113, 133, 0.38);
+    }
+
+    .小按鈕 {
+      min-height: 36px;
+      padding: 7px 11px;
+      border-radius: 10px;
+      font-size: 0.88rem;
+    }
+
+    .主容器 {
+      width: min(1480px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 44px;
+    }
+
+    /* ==================== 頁首 ==================== */
+    .頁首 {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .標題區 h1 {
+      margin: 0 0 7px;
+      font-size: clamp(1.55rem, 3vw, 2.45rem);
+      letter-spacing: 0.02em;
+      line-height: 1.2;
+    }
+
+    .標題區 p {
+      margin: 0;
+      color: var(--次要文字色);
+      font-size: 0.96rem;
+    }
+
+    .離線標記 {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border: 1px solid rgba(86, 227, 159, 0.35);
+      border-radius: 999px;
+      color: var(--成功色);
+      background: rgba(86, 227, 159, 0.09);
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    /* ==================== 卡片及版面 ==================== */
+    .卡片 {
+      margin-bottom: 18px;
+      padding: clamp(16px, 2.5vw, 26px);
+      border: 1px solid var(--邊框色);
+      border-radius: var(--圓角);
+      background: var(--卡片色);
+      box-shadow: var(--陰影);
+      animation: 卡片出現 350ms ease both;
+    }
+
+    @keyframes 卡片出現 {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .卡片標題列 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .卡片標題列 h2 {
+      margin: 0;
+      font-size: 1.15rem;
+    }
+
+    .說明文字 {
+      margin: 5px 0 0;
+      color: var(--次要文字色);
+      font-size: 0.9rem;
+    }
+
+    .匯入網格 {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 18px;
+    }
+
+    .欄位標題 {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--文字色);
+      font-weight: 700;
+    }
+
+    .拖曳區 {
+      display: flex;
+      min-height: 180px;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      border: 2px dashed rgba(110, 231, 255, 0.42);
+      border-radius: 15px;
+      background: rgba(110, 231, 255, 0.05);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .拖曳區:hover,
+    .拖曳區.拖曳中 {
+      border-color: var(--主色);
+      background: rgba(110, 231, 255, 0.12);
+      transform: scale(1.005);
+    }
+
+    .拖曳區強調 {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--主色);
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .拖曳區細節 {
+      display: block;
+      color: var(--次要文字色);
+      font-size: 0.88rem;
+    }
+
+    #本地檔案 {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    textarea,
+    input[type="search"],
+    select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--邊框色);
+      border-radius: 12px;
+      padding: 11px 13px;
+      color: var(--文字色);
+      background: rgba(18, 17, 34, 0.62);
+    }
+
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    textarea::placeholder,
+    input::placeholder {
+      color: #85839e;
+    }
+
+    .輸入底部列,
+    .操作列 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 13px;
+    }
+
+    /* 檢查速度選項；使用較大的點擊範圍，方便觸控裝置操作。 */
+    .速度設定列 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 9px;
+      margin-top: 14px;
+      padding: 11px 13px;
+      border: 1px solid var(--邊框色);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .速度設定標題 {
+      color: var(--文字色);
+      font-weight: 700;
+    }
+
+    .速度選項 {
+      display: inline-flex;
+      min-height: 42px;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      color: var(--次要文字色);
+      background: rgba(255, 255, 255, 0.04);
+      cursor: pointer;
+    }
+
+    .速度選項:has(input:checked) {
+      border-color: rgba(110, 231, 255, 0.5);
+      color: var(--文字色);
+      background: rgba(110, 231, 255, 0.1);
+    }
+
+    .速度選項 input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--主色);
+    }
+
+    .速度提示 {
+      flex: 1 1 100%;
+      color: var(--次要文字色);
+      font-size: 0.82rem;
+    }
+
+    .提示 {
+      color: var(--次要文字色);
+      font-size: 0.84rem;
+    }
+
+    .提示 strong {
+      color: var(--主色);
+    }
+
+    .來源清單 {
+      display: grid;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .來源項目 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--邊框色);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .來源名稱 {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .來源資訊 {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .來源類型 {
+      flex: 0 0 auto;
+      padding: 3px 7px;
+      border-radius: 999px;
+      color: var(--主色);
+      background: rgba(110, 231, 255, 0.12);
+      font-size: 0.76rem;
+    }
+
+    .來源狀態 {
+      flex: 0 0 auto;
+      color: var(--次要文字色);
+      font-size: 0.82rem;
+    }
+
+    .來源狀態.錯誤 { color: var(--錯誤色); }
+    .來源狀態.完成 { color: var(--成功色); }
+
+    /* ==================== 統計數字及進度 ==================== */
+    .統計網格 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .統計項目 {
+      min-width: 0;
+      padding: 14px 12px;
+      border: 1px solid var(--邊框色);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .統計標籤 {
+      display: block;
+      color: var(--次要文字色);
+      font-size: 0.82rem;
+    }
+
+    .統計數字 {
+      display: block;
+      margin-top: 3px;
+      color: var(--文字色);
+      font-size: clamp(1.35rem, 3vw, 2rem);
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .進度區 {
+      margin-top: 18px;
+    }
+
+    .進度頂部 {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      color: var(--次要文字色);
+      font-size: 0.88rem;
+    }
+
+    .進度外框 {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .進度條 {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--主色深), var(--主色));
+      transition: width 180ms ease;
+    }
+
+    /* ==================== 預覽區 ==================== */
+    .工具列 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .搜尋框 {
+      flex: 1 1 260px;
+    }
+
+    .排序選擇 {
+      flex: 0 1 190px;
+    }
+
+    .預覽資訊 {
+      margin: 0 0 13px;
+      color: var(--次要文字色);
+      font-size: 0.88rem;
+    }
+
+    .頻道清單 {
+      display: grid;
+      gap: 10px;
+      max-height: 720px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .頻道項目 {
+      overflow: hidden;
+      border: 1px solid var(--邊框色);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.052);
+    }
+
+    .頻道項目 summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 54px;
+      padding: 12px 14px;
+      cursor: pointer;
+      list-style: none;
+      transition: background 160ms ease;
+    }
+
+    .頻道項目 summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .頻道項目 summary:hover {
+      background: rgba(110, 231, 255, 0.08);
+    }
+
+    .頻道項目 summary::before {
+      content: "▶";
+      flex: 0 0 auto;
+      color: var(--主色);
+      font-size: 0.78rem;
+      transition: transform 160ms ease;
+    }
+
+    .頻道項目[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .頻道標題 {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 9px;
+      margin-right: auto;
+    }
+
+    .頻道名稱 {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 800;
+    }
+
+    .路線數量 {
+      flex: 0 0 auto;
+      color: var(--次要文字色);
+      font-size: 0.84rem;
+      font-weight: 500;
+    }
+
+    .路線清單 {
+      display: grid;
+      gap: 7px;
+      padding: 0 14px 14px 40px;
+    }
+
+    .路線項目 {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 10px;
+      background: rgba(18, 17, 34, 0.43);
+    }
+
+    .路線網址 {
+      min-width: 0;
+      flex: 1;
+      overflow-wrap: anywhere;
+      color: #dedcf4;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    .有效標籤,
+    .無效標籤,
+    .待檢查標籤 {
+      flex: 0 0 auto;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 700;
+    }
+
+    .有效標籤 { color: var(--成功色); background: rgba(86, 227, 159, 0.12); }
+    .無效標籤 { color: var(--錯誤色); background: rgba(255, 113, 133, 0.12); }
+    .待檢查標籤 { color: var(--警告色); background: rgba(255, 209, 102, 0.12); }
+
+    .空狀態 {
+      padding: 40px 18px;
+      border: 1px dashed var(--邊框色);
+      border-radius: 14px;
+      color: var(--次要文字色);
+      text-align: center;
+    }
+
+    .空狀態 strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--文字色);
+    }
+
+    .錯誤清單 {
+      display: none;
+      max-height: 380px;
+      overflow: auto;
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid rgba(255, 113, 133, 0.25);
+      border-radius: 12px;
+      background: rgba(255, 113, 133, 0.06);
+    }
+
+    .錯誤清單.顯示 {
+      display: block;
+    }
+
+    .錯誤項目 {
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .錯誤項目:last-child {
+      border-bottom: 0;
+    }
+
+    .錯誤項目名稱 {
+      font-weight: 700;
+    }
+
+    .錯誤項目原因 {
+      color: var(--錯誤色);
+      font-size: 0.86rem;
+    }
+
+    .狀態訊息 {
+      position: fixed;
+      z-index: 20;
+      right: 18px;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      max-width: min(420px, calc(100vw - 36px));
+      padding: 12px 15px;
+      border: 1px solid rgba(110, 231, 255, 0.35);
+      border-radius: 12px;
+      color: var(--文字色);
+      background: #2d2b4b;
+      box-shadow: var(--陰影);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .狀態訊息.顯示 {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .頁尾 {
+      padding: 5px 2px 0;
+      color: #8f8da8;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    /* ==================== 小螢幕及觸控裝置適配 ==================== */
+    @media (max-width: 820px) {
+      .匯入網格 {
+        grid-template-columns: 1fr;
+      }
+
+      .統計網格 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .主容器 {
+        width: min(100% - 18px, 1480px);
+        padding-top: 15px;
+      }
+
+      .頁首 {
+        display: block;
+      }
+
+      .離線標記 {
+        display: inline-block;
+        margin-top: 12px;
+      }
+
+      .卡片 {
+        padding: 15px;
+        border-radius: 15px;
+      }
+
+      .統計網格 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .統計項目:last-child {
+        grid-column: span 2;
+      }
+
+      .操作列 button,
+      .輸入底部列 button {
+        flex: 1 1 150px;
+      }
+
+      .頻道項目 summary {
+        padding: 11px;
+      }
+
+      .路線清單 {
+        padding-left: 30px;
+        padding-right: 10px;
+      }
+
+      .路線項目 {
+        display: grid;
+        grid-template-columns: 1fr auto;
+      }
+
+      .路線網址 {
+        grid-column: 1 / -1;
+        grid-row: 1;
+      }
+
+      .路線項目 .小按鈕 {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      .路線項目 .有效標籤,
+      .路線項目 .無效標籤,
+      .路線項目 .待檢查標籤 {
+        grid-column: 1;
+        grid-row: 2;
+        justify-self: start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="主容器">
+    <header class="頁首">
+      <div class="標題區">
+        <h1>M3U 播放清單管理工具</h1>
+        <p>匯入、整理、檢查及匯出 M3U／M3U8 播放地址；所有資料只會留在本機瀏覽器。</p>
+      </div>
+      <div class="離線標記">● 可離線使用</div>
+    </header>
+
+    <section class="卡片" aria-labelledby="匯入標題">
+      <div class="卡片標題列">
+        <div>
+          <h2 id="匯入標題">一、匯入 M3U</h2>
+          <p class="說明文字">本地檔案及網上網址可以同時加入，之後一次分析。</p>
+        </div>
+      </div>
+
+      <div class="匯入網格">
+        <div>
+          <label class="欄位標題" for="本地檔案">本地 M3U 檔案</label>
+          <label class="拖曳區" id="拖曳區" for="本地檔案">
+            <span>
+              <span class="拖曳區強調">點擊選擇，或將檔案拖曳到這裏</span>
+              <span class="拖曳區細節">支援一次選擇多個 .m3u／.m3u8 檔案</span>
+            </span>
+          </label>
+          <input id="本地檔案" type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" multiple>
+          <div class="輸入底部列">
+            <span class="提示" id="已選檔案提示">尚未選擇本地檔案</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="欄位標題" for="網址輸入">M3U 網址（每行一個）</label>
+          <textarea id="網址輸入" spellcheck="false" placeholder="https://a.com/live.m3u&#10;https://b.com/live.m3u"></textarea>
+          <div class="輸入底部列">
+            <button type="button" id="匯入按鈕">匯入本地檔案及網址</button>
+            <span class="提示">網上網址必須允許瀏覽器跨來源讀取（CORS）。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="來源清單" id="來源清單" aria-live="polite"></div>
+    </section>
+
+    <section class="卡片" aria-labelledby="分析標題">
+      <div class="卡片標題列">
+        <div>
+          <h2 id="分析標題">二、分析及整理</h2>
+          <p class="說明文字">先解析所有已匯入來源，再按播放地址完全一致的規則去重及排序。</p>
+        </div>
+      </div>
+      <div class="操作列">
+        <button type="button" id="分析按鈕">開始分析、去重及排序</button>
+        <button type="button" class="次要按鈕" id="檢查按鈕" disabled>檢查有效性</button>
+        <button type="button" class="次要按鈕" id="失效清單按鈕" disabled>查看失效清單</button>
+        <button type="button" class="危險按鈕" id="清除按鈕">清除全部</button>
+      </div>
+      <div class="速度設定列" role="group" aria-labelledby="檢查速度標題">
+        <span class="速度設定標題" id="檢查速度標題">檢查速度：</span>
+        <label class="速度選項">
+          <input type="radio" name="檢查速度" value="相容模式">
+          <span>相容模式（較穩定）</span>
+        </label>
+        <label class="速度選項">
+          <input type="radio" name="檢查速度" value="平衡模式" checked>
+          <span>平衡模式（預設）</span>
+        </label>
+        <label class="速度選項">
+          <input type="radio" name="檢查速度" value="極速模式">
+          <span>極速模式（最快）</span>
+        </label>
+        <span class="速度提示" id="檢查速度提示"></span>
+      </div>
+    </section>
+
+    <section class="卡片" aria-labelledby="統計標題">
+      <div class="卡片標題列">
+        <div>
+          <h2 id="統計標題">三、即時統計</h2>
+          <p class="說明文字" id="目前狀態">請先匯入一個或多個 M3U 來源。</p>
+        </div>
+      </div>
+      <div class="統計網格">
+        <div class="統計項目"><span class="統計標籤">匯入數量</span><strong class="統計數字" id="統計匯入">0</strong></div>
+        <div class="統計項目"><span class="統計標籤">有效數量</span><strong class="統計數字" id="統計有效">0</strong></div>
+        <div class="統計項目"><span class="統計標籤">無效數量</span><strong class="統計數字" id="統計無效">0</strong></div>
+        <div class="統計項目"><span class="統計標籤">去重數量</span><strong class="統計數字" id="統計去重">0</strong></div>
+        <div class="統計項目"><span class="統計標籤">最終數量</span><strong class="統計數字" id="統計最終">0</strong></div>
+      </div>
+      <div class="進度區">
+        <div class="進度頂部"><span id="進度文字">尚未開始檢查</span><span id="進度百分比">0%</span></div>
+        <div class="進度外框" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="有效性檢查進度">
+          <div class="進度條" id="進度條"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="卡片" aria-labelledby="預覽標題">
+      <div class="卡片標題列">
+        <div>
+          <h2 id="預覽標題">四、播放清單預覽</h2>
+          <p class="說明文字">按頻道名稱分組；同一頻道的多條播放路線會一併保留。</p>
+        </div>
+      </div>
+      <div class="工具列">
+        <div class="搜尋框">
+          <label class="欄位標題" for="搜尋輸入">搜尋頻道或播放地址</label>
+          <input id="搜尋輸入" type="search" placeholder="輸入關鍵字即可即時篩選">
+        </div>
+        <div class="排序選擇">
+          <label class="欄位標題" for="排序選擇">預覽排序</label>
+          <select id="排序選擇">
+            <option value="名稱升序">頻道名稱（中文拼音／自然排序）</option>
+            <option value="名稱降序">頻道名稱（倒序）</option>
+            <option value="網址升序">播放地址（自然排序）</option>
+          </select>
+        </div>
+        <div class="排序選擇">
+          <label class="欄位標題" for="狀態篩選">顯示篩選</label>
+          <select id="狀態篩選">
+            <option value="全部">全部路線</option>
+            <option value="有效">只顯示有效</option>
+            <option value="無效">只顯示無效</option>
+            <option value="待檢查">只顯示待檢查</option>
+          </select>
+        </div>
+      </div>
+      <p class="預覽資訊" id="預覽資訊">尚未有可預覽的播放地址。</p>
+      <div class="頻道清單" id="頻道清單">
+        <div class="空狀態"><strong>未有播放清單</strong>匯入來源並按「開始分析」後，結果會在這裏顯示。</div>
+      </div>
+      <div class="錯誤清單" id="錯誤清單" aria-live="polite"></div>
+    </section>
+
+    <section class="卡片" aria-labelledby="匯出標題">
+      <div class="卡片標題列">
+        <div>
+          <h2 id="匯出標題">五、匯出</h2>
+          <p class="說明文字">檢查完成後會優先匯出有效路線；未檢查前則匯出全部已去重路線。</p>
+        </div>
+      </div>
+      <div class="操作列">
+        <button type="button" id="匯出按鈕" disabled>下載 merged.m3u</button>
+        <span class="提示" id="匯出提示">完成分析後即可下載。</span>
+      </div>
+    </section>
+
+    <footer class="頁尾">本工具不會上傳檔案或播放地址；網上來源只會由你的瀏覽器直接讀取。</footer>
+  </main>
+
+  <div class="狀態訊息" id="狀態訊息" role="status" aria-live="polite"></div>
+
+  <script>
+    "use strict";
+
+    /*
+     * ==================== M3U 管理工具程式 ====================
+     *
+     * 設計原則：
+     * 1. 所有資料只存於記憶體，重新整理頁面後不會保留任何內容。
+     * 2. 所有顯示文字透過 textContent 或安全建立元素，避免把 M3U 內容當成 HTML 執行。
+     * 3. 有效性檢查使用非同步工作佇列，並按速度模式及裝置效能動態調整並發數。
+     * 4. 網址完全一致才會去重，頻道名稱不會影響去重結果。
+     */
+
+    /* ==================== 應用程式狀態 ==================== */
+    const state = {
+      sources: [],
+      rawEntries: [],
+      uniqueEntries: [],
+      isAnalyzed: false,
+      isChecking: false,
+      validationFinished: false,
+      showInvalidList: false,
+      toastTimer: null
+    };
+
+    /* 建立中文拼音排序器；支援自然排序，令 CCTV-2 排在 CCTV-10 前面。 */
+    let 名稱排序器;
+    try {
+      名稱排序器 = new Intl.Collator("zh-Hant-u-co-pinyin", {
+        numeric: true,
+        sensitivity: "base"
+      });
+    } catch (錯誤) {
+      名稱排序器 = new Intl.Collator("zh-Hant", {
+        numeric: true,
+        sensitivity: "base"
+      });
+    }
+
+    const 網址排序器 = new Intl.Collator("en", {
+      numeric: true,
+      sensitivity: "base"
+    });
+
+    /* 集中取得頁面元素，避免在各個函式內重複查找。 */
+    const 元素 = {
+      本地檔案: document.getElementById("本地檔案"),
+      拖曳區: document.getElementById("拖曳區"),
+      已選檔案提示: document.getElementById("已選檔案提示"),
+      網址輸入: document.getElementById("網址輸入"),
+      匯入按鈕: document.getElementById("匯入按鈕"),
+      來源清單: document.getElementById("來源清單"),
+      分析按鈕: document.getElementById("分析按鈕"),
+      檢查按鈕: document.getElementById("檢查按鈕"),
+      失效清單按鈕: document.getElementById("失效清單按鈕"),
+      清除按鈕: document.getElementById("清除按鈕"),
+      搜尋輸入: document.getElementById("搜尋輸入"),
+      排序選擇: document.getElementById("排序選擇"),
+      狀態篩選: document.getElementById("狀態篩選"),
+      頻道清單: document.getElementById("頻道清單"),
+      預覽資訊: document.getElementById("預覽資訊"),
+      錯誤清單: document.getElementById("錯誤清單"),
+      匯出按鈕: document.getElementById("匯出按鈕"),
+      匯出提示: document.getElementById("匯出提示"),
+      目前狀態: document.getElementById("目前狀態"),
+      統計匯入: document.getElementById("統計匯入"),
+      統計有效: document.getElementById("統計有效"),
+      統計無效: document.getElementById("統計無效"),
+      統計去重: document.getElementById("統計去重"),
+      統計最終: document.getElementById("統計最終"),
+      進度文字: document.getElementById("進度文字"),
+      進度百分比: document.getElementById("進度百分比"),
+      進度條: document.getElementById("進度條"),
+      進度外框: document.querySelector(".進度外框"),
+      檢查速度提示: document.getElementById("檢查速度提示"),
+      狀態訊息: document.getElementById("狀態訊息")
+    };
+
+    /* ==================== 通用輔助函式 ==================== */
+
+    /* 顯示短暫狀態提示，避免大量使用瀏覽器 alert 阻礙操作。 */
+    function 顯示提示(訊息) {
+      元素.狀態訊息.textContent = 訊息;
+      元素.狀態訊息.classList.add("顯示");
+      window.clearTimeout(state.toastTimer);
+      state.toastTimer = window.setTimeout(() => {
+        元素.狀態訊息.classList.remove("顯示");
+      }, 4200);
+    }
+
+    /* 將介面文字設為忙碌狀態；檔案選擇和搜尋仍然可以保留基本操作。 */
+    function 設定忙碌(忙碌) {
+      state.isChecking = 忙碌;
+      元素.匯入按鈕.disabled = 忙碌;
+      元素.分析按鈕.disabled = 忙碌;
+      元素.檢查按鈕.disabled = 忙碌 || !state.isAnalyzed || state.uniqueEntries.length === 0;
+      元素.清除按鈕.disabled = 忙碌;
+      元素.匯出按鈕.disabled = 忙碌 || !state.isAnalyzed || state.uniqueEntries.length === 0;
+    }
+
+    /* 將狀態重設為尚未檢查，保留播放地址以便重新檢查。 */
+    function 重設檢查結果() {
+      state.validationFinished = false;
+      for (const 項目 of state.uniqueEntries) {
+        項目.status = "待檢查";
+        項目.error = "";
+      }
+      元素.進度文字.textContent = "尚未開始檢查";
+      元素.進度百分比.textContent = "0%";
+      元素.進度條.style.width = "0%";
+      元素.進度外框.setAttribute("aria-valuenow", "0");
+      更新統計();
+    }
+
+    /* 取得網址文字的行列，去除空白及空行。 */
+    function 取得網址清單() {
+      return 元素.網址輸入.value
+        .split(/\r?\n/)
+        .map((網址) => 網址.trim())
+        .filter((網址) => 網址.length > 0);
+    }
+
+    /* 判斷檔案是否看起來是 M3U 檔案；拖曳操作會額外接受文字檔，方便處理沒有副檔名的清單。 */
+    function 是否為M3U檔案(檔案) {
+      return /\.(m3u8?|m3u)$/i.test(檔案.name) || /text|mpegurl/i.test(檔案.type);
+    }
+
+    /* ==================== M3U 解析及去重 ==================== */
+
+    /*
+     * 解析標準 M3U：
+     * #EXTINF:-1,頻道名稱
+     * https://example.com/channel.m3u8
+     *
+     * EXTINF 後第一個非註解行會視為播放地址。
+     * EXTINF 的其他屬性全部忽略，符合本工具的需求。
+     */
+    function 解析M3U(文字, 來源名稱) {
+      const 結果 = [];
+      const 行列 = String(文字 || "")
+        .replace(/^\uFEFF/, "")
+        .split(/\r?\n/);
+      let 待用頻道名稱 = null;
+
+      for (const 原始行 of 行列) {
+        const 行 = 原始行.trim();
+        if (!行) continue;
+
+        if (/^#EXTINF\s*:/i.test(行)) {
+          const 逗號位置 = 行.indexOf(",");
+          let 頻道名稱 = 逗號位置 >= 0 ? 行.slice(逗號位置 + 1).trim() : "未命名頻道";
+          if (!頻道名稱) 頻道名稱 = "未命名頻道";
+          待用頻道名稱 = 頻道名稱;
+          continue;
+        }
+
+        /* 其他 # 開頭內容是標籤或註解，不是播放地址。 */
+        if (行.startsWith("#")) continue;
+
+        if (待用頻道名稱 !== null) {
+          結果.push({
+            name: 待用頻道名稱,
+            url: 行,
+            source: 來源名稱,
+            status: "待檢查",
+            error: ""
+          });
+          待用頻道名稱 = null;
+        }
+      }
+
+      return 結果;
+    }
+
+    /* 以播放地址為唯一鍵去重；保留第一次出現的頻道名稱及來源。 */
+    function 去重及排序(項目列) {
+      const 已見網址 = new Set();
+      const 唯一項目 = [];
+
+      for (const 項目 of 項目列) {
+        const 網址 = String(項目.url || "").trim();
+        if (!網址 || 已見網址.has(網址)) continue;
+        已見網址.add(網址);
+        唯一項目.push({ ...項目, url: 網址 });
+      }
+
+      唯一項目.sort((甲, 乙) => {
+        const 名稱結果 = 名稱排序器.compare(甲.name, 乙.name);
+        return 名稱結果 !== 0 ? 名稱結果 : 網址排序器.compare(甲.url, 乙.url);
+      });
+      return 唯一項目;
+    }
+
+    /* ==================== 來源匯入 ==================== */
+
+    /* 讀取本地檔案內容；FileReader 在 file:// 離線環境同樣可用。 */
+    function 讀取本地檔案(檔案) {
+      return new Promise((resolve, reject) => {
+        const 讀取器 = new FileReader();
+        讀取器.onload = () => resolve(String(讀取器.result || ""));
+        讀取器.onerror = () => reject(new Error("瀏覽器無法讀取此檔案。"));
+        讀取器.readAsText(檔案, "UTF-8");
+      });
+    }
+
+    /* 使用 AbortController 實作 8 秒超時；瀏覽器不支援時仍會正常發出請求。 */
+    async function 下載網址內容(網址) {
+      const 控制器 = typeof AbortController === "function" ? new AbortController() : null;
+      const 超時計時器 = window.setTimeout(() => 控制器 && 控制器.abort(), 8000);
+      try {
+        const 回應 = await fetch(網址, {
+          method: "GET",
+          cache: "no-store",
+          signal: 控制器 ? 控制器.signal : undefined
+        });
+        if (!回應.ok) {
+          throw new Error(`HTTP ${回應.status}`);
+        }
+        return await 回應.text();
+      } catch (錯誤) {
+        if (錯誤 && 錯誤.name === "AbortError") {
+          throw new Error("連線超時（8 秒）");
+        }
+        if (錯誤 instanceof TypeError) {
+          throw new Error("無法讀取，可能是網址錯誤或網站未允許跨來源讀取");
+        }
+        throw 錯誤;
+      } finally {
+        window.clearTimeout(超時計時器);
+      }
+    }
+
+    /* 更新來源清單，讓使用者看見每個來源的種類及讀取結果。 */
+    function 顯示來源清單() {
+      元素.來源清單.replaceChildren();
+      if (state.sources.length === 0) return;
+
+      for (const [索引, 來源] of state.sources.entries()) {
+        const 項目 = document.createElement("div");
+        項目.className = "來源項目";
+
+        const 左側 = document.createElement("div");
+        左側.className = "來源資訊";
+        const 類型 = document.createElement("span");
+        類型.className = "來源類型";
+        類型.textContent = 來源.type === "file" ? "本地" : "網址";
+        const 名稱 = document.createElement("span");
+        名稱.className = "來源名稱";
+        名稱.title = 來源.name;
+        名稱.textContent = 來源.name;
+        左側.append(類型, 名稱);
+
+        const 右側 = document.createElement("div");
+        右側.className = "來源資訊";
+        const 狀態 = document.createElement("span");
+        狀態.className = `來源狀態 ${來源.error ? "錯誤" : 來源.text !== null ? "完成" : ""}`;
+        狀態.textContent = 來源.error ? 來源.error : 來源.text !== null ? "已載入" : "讀取中";
+        const 移除按鈕 = document.createElement("button");
+        移除按鈕.type = "button";
+        移除按鈕.className = "危險按鈕 小按鈕";
+        移除按鈕.textContent = "刪除";
+        移除按鈕.addEventListener("click", () => 移除來源(索引));
+        右側.append(狀態, 移除按鈕);
+
+        項目.append(左側, 右側);
+        元素.來源清單.appendChild(項目);
+      }
+    }
+
+    /* 移除單一來源，並清除需要重新分析的舊結果。 */
+    function 移除來源(索引) {
+      if (state.isChecking) return;
+      state.sources.splice(索引, 1);
+      state.rawEntries = [];
+      state.uniqueEntries = [];
+      state.isAnalyzed = false;
+      state.validationFinished = false;
+      顯示來源清單();
+      更新統計();
+      顯示預覽();
+      更新按鈕狀態();
+      顯示提示("已刪除來源；請重新開始分析。");
+    }
+
+    /* 將目前選取的本地檔案及文字框內網址一併匯入。 */
+    async function 匯入所有來源() {
+      if (state.isChecking) return;
+      const 檔案列 = Array.from(元素.本地檔案.files || []);
+      const 網址列 = 取得網址清單();
+      if (檔案列.length === 0 && 網址列.length === 0) {
+        顯示提示("請先選擇本地 M3U，或輸入至少一個網址。");
+        return;
+      }
+
+      元素.匯入按鈕.disabled = true;
+      let 新增數量 = 0;
+
+      /* 先讀取本地檔案；每個檔案獨立處理，單一檔案失敗不會阻止其他檔案。 */
+      for (const 檔案 of 檔案列) {
+        if (!是否為M3U檔案(檔案)) {
+          state.sources.push({ name: 檔案.name, type: "file", text: null, error: "不是支援的 M3U 檔案" });
+          continue;
+        }
+        try {
+          const 文字 = await 讀取本地檔案(檔案);
+          state.sources.push({ name: 檔案.name, type: "file", text: 文字, error: "" });
+          新增數量 += 1;
+        } catch (錯誤) {
+          state.sources.push({ name: 檔案.name, type: "file", text: null, error: 錯誤.message || "讀取失敗" });
+        }
+      }
+
+      /* 逐一下載網址；順序保持與輸入一致，令來源追蹤更容易。 */
+      for (const 網址 of 網址列) {
+        const 來源 = { name: 網址, type: "url", text: null, error: "" };
+        state.sources.push(來源);
+        顯示來源清單();
+        try {
+          來源.text = await 下載網址內容(網址);
+          新增數量 += 1;
+        } catch (錯誤) {
+          來源.error = 錯誤.message || "下載失敗";
+        }
+      }
+
+      state.rawEntries = [];
+      state.uniqueEntries = [];
+      state.isAnalyzed = false;
+      state.validationFinished = false;
+      顯示來源清單();
+      更新統計();
+      顯示預覽();
+      更新按鈕狀態();
+      元素.匯入按鈕.disabled = false;
+      顯示提示(`完成匯入 ${新增數量} 個來源；請按「開始分析、去重及排序」。`);
+    }
+
+    /* ==================== 分析、統計及預覽 ==================== */
+
+    function 開始分析() {
+      if (state.isChecking) return;
+      if (state.sources.length === 0) {
+        顯示提示("請先匯入本地檔案或網址。");
+        return;
+      }
+
+      const 全部項目 = [];
+      for (const 來源 of state.sources) {
+        if (!來源.text || 來源.error) continue;
+        全部項目.push(...解析M3U(來源.text, 來源.name));
+      }
+
+      state.rawEntries = 全部項目;
+      state.uniqueEntries = 去重及排序(全部項目);
+      state.isAnalyzed = true;
+      state.validationFinished = false;
+      重設檢查結果();
+      更新按鈕狀態();
+      顯示預覽();
+      顯示提示(`分析完成：讀取 ${全部項目.length} 條路線，去除 ${全部項目.length - state.uniqueEntries.length} 條重複地址。`);
+    }
+
+    /* 根據目前的資料狀態更新五個統計數字。 */
+    function 更新統計() {
+      const 匯入數量 = state.rawEntries.length;
+      const 唯一數量 = state.uniqueEntries.length;
+      const 有效數量 = state.uniqueEntries.filter((項目) => 項目.status === "有效").length;
+      const 無效數量 = state.uniqueEntries.filter((項目) => 項目.status === "無效").length;
+      const 最終數量 = state.validationFinished ? 有效數量 : 唯一數量;
+
+      元素.統計匯入.textContent = 匯入數量.toLocaleString("zh-HK");
+      元素.統計有效.textContent = 有效數量.toLocaleString("zh-HK");
+      元素.統計無效.textContent = 無效數量.toLocaleString("zh-HK");
+      元素.統計去重.textContent = Math.max(0, 匯入數量 - 唯一數量).toLocaleString("zh-HK");
+      元素.統計最終.textContent = 最終數量.toLocaleString("zh-HK");
+
+      if (!state.isAnalyzed) {
+        元素.目前狀態.textContent = "請先匯入一個或多個 M3U 來源。";
+      } else if (state.isChecking) {
+        元素.目前狀態.textContent = "正在檢查播放地址，請稍候……";
+      } else if (state.validationFinished) {
+        元素.目前狀態.textContent = `檢查完成：${有效數量} 條有效，${無效數量} 條無效。`;
+      } else {
+        元素.目前狀態.textContent = `分析完成：共 ${唯一數量} 條不重複播放路線，尚未檢查有效性。`;
+      }
+    }
+
+    /* 依照目前的篩選及排序設定，準備要顯示的項目。 */
+    function 取得預覽項目() {
+      const 搜尋字串 = 元素.搜尋輸入.value.trim().toLocaleLowerCase("zh-HK");
+      const 狀態篩選 = 元素.狀態篩選.value;
+      const 排序方式 = 元素.排序選擇.value;
+
+      let 結果 = state.uniqueEntries.filter((項目) => {
+        const 符合搜尋 = !搜尋字串 || `${項目.name} ${項目.url}`.toLocaleLowerCase("zh-HK").includes(搜尋字串);
+        const 符合狀態 = 狀態篩選 === "全部" || 項目.status === 狀態篩選;
+        return 符合搜尋 && 符合狀態;
+      });
+
+      結果 = [...結果].sort((甲, 乙) => {
+        if (排序方式 === "網址升序") return 網址排序器.compare(甲.url, 乙.url);
+        const 名稱結果 = 名稱排序器.compare(甲.name, 乙.name);
+        const 最終結果 = 名稱結果 !== 0 ? 名稱結果 : 網址排序器.compare(甲.url, 乙.url);
+        return 排序方式 === "名稱降序" ? -最終結果 : 最終結果;
+      });
+      return 結果;
+    }
+
+    /* 建立安全的文字節點，附帶複製網址按鈕及有效性標籤。 */
+    function 建立路線元素(項目) {
+      const 路線 = document.createElement("div");
+      路線.className = "路線項目";
+
+      const 網址 = document.createElement("div");
+      網址.className = "路線網址";
+      網址.textContent = 項目.url;
+      網址.title = 項目.url;
+
+      const 標籤 = document.createElement("span");
+      if (項目.status === "有效") {
+        標籤.className = "有效標籤";
+        標籤.textContent = "有效";
+        標籤.title = "HTTP 200 且內容符合 HLS／M3U8 特徵";
+      } else if (項目.status === "無效") {
+        標籤.className = "無效標籤";
+        標籤.textContent = "無效";
+        標籤.title = 項目.error || "未能通過檢查";
+      } else {
+        標籤.className = "待檢查標籤";
+        標籤.textContent = "待檢查";
+      }
+
+      const 複製按鈕 = document.createElement("button");
+      複製按鈕.type = "button";
+      複製按鈕.className = "次要按鈕 小按鈕";
+      複製按鈕.textContent = "複製";
+      複製按鈕.addEventListener("click", () => 複製文字(項目.url));
+
+      路線.append(網址, 標籤, 複製按鈕);
+      return 路線;
+    }
+
+    /* 以頻道名稱分組輸出；分組前的項目已經按所選排序方式排列。 */
+    function 顯示預覽() {
+      const 項目列 = 取得預覽項目();
+      元素.頻道清單.replaceChildren();
+
+      if (state.uniqueEntries.length === 0) {
+        const 空狀態 = document.createElement("div");
+        空狀態.className = "空狀態";
+        const 標題 = document.createElement("strong");
+        標題.textContent = state.isAnalyzed ? "找不到可用的 M3U 路線" : "未有播放清單";
+        空狀態.append(標題, document.createTextNode(state.isAnalyzed ? "請確認來源是標準 M3U 格式。" : "匯入來源並按「開始分析」後，結果會在這裏顯示。"));
+        元素.頻道清單.appendChild(空狀態);
+        元素.預覽資訊.textContent = "尚未有可預覽的播放地址。";
+        return;
+      }
+
+      if (項目列.length === 0) {
+        const 空狀態 = document.createElement("div");
+        空狀態.className = "空狀態";
+        const 標題 = document.createElement("strong");
+        標題.textContent = "沒有符合篩選條件的路線";
+        空狀態.append(標題, document.createTextNode("可以清除搜尋文字或改用其他篩選。"));
+        元素.頻道清單.appendChild(空狀態);
+        元素.預覽資訊.textContent = `目前顯示 0／${state.uniqueEntries.length.toLocaleString("zh-HK")} 條路線。`;
+        return;
+      }
+
+      const 分組 = new Map();
+      for (const 項目 of 項目列) {
+        if (!分組.has(項目.name)) 分組.set(項目.name, []);
+        分組.get(項目.name).push(項目);
+      }
+
+      for (const [頻道名稱, 路線列] of 分組.entries()) {
+        const 詳情 = document.createElement("details");
+        詳情.className = "頻道項目";
+        const 摘要 = document.createElement("summary");
+        const 標題 = document.createElement("span");
+        標題.className = "頻道標題";
+        const 名稱 = document.createElement("span");
+        名稱.className = "頻道名稱";
+        名稱.textContent = 頻道名稱;
+        名稱.title = 頻道名稱;
+        const 數量 = document.createElement("span");
+        數量.className = "路線數量";
+        數量.textContent = `${路線列.length} 條路線`;
+        標題.append(名稱, 數量);
+        摘要.appendChild(標題);
+
+        const 路線容器 = document.createElement("div");
+        路線容器.className = "路線清單";
+        for (const 項目 of 路線列) 路線容器.appendChild(建立路線元素(項目));
+        詳情.append(摘要, 路線容器);
+        元素.頻道清單.appendChild(詳情);
+      }
+
+      元素.預覽資訊.textContent = `目前顯示 ${項目列.length.toLocaleString("zh-HK")}／${state.uniqueEntries.length.toLocaleString("zh-HK")} 條路線，共 ${分組.size.toLocaleString("zh-HK")} 個頻道。`;
+    }
+
+    /* 建立失效清單，列出每條路線的失敗原因。 */
+    function 顯示失效清單() {
+      元素.錯誤清單.replaceChildren();
+      const 失效列 = state.uniqueEntries.filter((項目) => 項目.status === "無效");
+      if (失效列.length === 0) {
+        元素.錯誤清單.classList.remove("顯示");
+        顯示提示("目前沒有失效路線。");
+        return;
+      }
+
+      const 標題 = document.createElement("p");
+      標題.className = "說明文字";
+      標題.textContent = `失效清單（${失效列.length.toLocaleString("zh-HK")} 條）`;
+      元素.錯誤清單.appendChild(標題);
+      for (const 項目 of 失效列) {
+        const 容器 = document.createElement("div");
+        容器.className = "錯誤項目";
+        const 名稱 = document.createElement("div");
+        名稱.className = "錯誤項目名稱";
+        名稱.textContent = 項目.name;
+        const 網址 = document.createElement("div");
+        網址.className = "路線網址";
+        網址.textContent = 項目.url;
+        const 原因 = document.createElement("div");
+        原因.className = "錯誤項目原因";
+        原因.textContent = 項目.error || "未能通過有效性檢查";
+        容器.append(名稱, 網址, 原因);
+        元素.錯誤清單.appendChild(容器);
+      }
+      元素.錯誤清單.classList.add("顯示");
+    }
+
+    /* ==================== M3U8 有效性檢查 ==================== */
+
+    /* 取得目前選擇的檢查速度模式；沒有選項時以平衡模式作後備。 */
+    function 取得檢查速度模式() {
+      return document.querySelector('input[name="檢查速度"]:checked')?.value || "平衡模式";
+    }
+
+    /*
+     * 根據速度模式及裝置 CPU 執行緒數計算並發上限：
+     * - 相容模式固定約 16 個，降低對舊裝置及網絡的壓力。
+     * - 平衡模式按 CPU 執行緒 × 4，限制在 16 至 64 個之間。
+     * - 極速模式按 CPU 執行緒 × 8，限制在 64 至 128 個之間。
+     * 若瀏覽器沒有提供硬件執行緒數，平衡及極速模式分別使用 32 及 64 個。
+     */
+    function 取得檢查並發數(總數) {
+      const 硬件執行緒數 = Number.isFinite(navigator.hardwareConcurrency) && navigator.hardwareConcurrency > 0
+        ? Math.floor(navigator.hardwareConcurrency)
+        : null;
+      const 模式 = 取得檢查速度模式();
+      let 建議並發數;
+
+      if (模式 === "相容模式") {
+        建議並發數 = 16;
+      } else if (模式 === "極速模式") {
+        建議並發數 = 硬件執行緒數 === null
+          ? 64
+          : Math.min(128, Math.max(64, 硬件執行緒數 * 8));
+      } else {
+        建議並發數 = 硬件執行緒數 === null
+          ? 32
+          : Math.min(64, Math.max(16, 硬件執行緒數 * 4));
+      }
+
+      return Math.min(總數, 建議並發數);
+    }
+
+    /* 更新速度設定下方的說明，讓使用者知道目前裝置會採用的並發上限。 */
+    function 更新檢查速度提示() {
+      const 總數 = Math.max(1, state.uniqueEntries.length);
+      const 並發數 = 取得檢查並發數(總數);
+      const 硬件執行緒數 = Number.isFinite(navigator.hardwareConcurrency) && navigator.hardwareConcurrency > 0
+        ? Math.floor(navigator.hardwareConcurrency)
+        : null;
+      const 執行緒說明 = 硬件執行緒數 === null ? "未能讀取裝置執行緒數" : `偵測到 ${硬件執行緒數} 個 CPU 執行緒`;
+      元素.檢查速度提示.textContent = `${執行緒說明}；目前模式最多同時檢查 ${並發數} 個地址。任何請求完成後會立即補上下一個。`;
+    }
+
+    /* 以常見 HLS 標籤判斷回應內容是否像 M3U8。 */
+    function 是HLS內容(文字) {
+      const 內容 = String(文字 || "").replace(/^\uFEFF/, "").trim();
+      if (!內容) return false;
+      return /^#EXTM3U\b/im.test(內容) || /#EXT-X-(?:TARGETDURATION|MEDIA-SEQUENCE|STREAM-INF|ENDLIST|MEDIA|KEY|PLAYLIST-TYPE)\b/i.test(內容);
+    }
+
+    /* 檢查單一播放地址：必須 HTTP 200，並且內容符合 HLS 特徵。 */
+    async function 檢查單一地址(項目) {
+      if (!/^https?:\/\//i.test(項目.url)) {
+        項目.status = "無效";
+        項目.error = "不是 HTTP 或 HTTPS 播放地址";
+        return;
+      }
+
+      const 控制器 = typeof AbortController === "function" ? new AbortController() : null;
+      const 超時計時器 = window.setTimeout(() => 控制器 && 控制器.abort(), 8000);
+      try {
+        const 回應 = await fetch(項目.url, {
+          method: "GET",
+          cache: "no-store",
+          signal: 控制器 ? 控制器.signal : undefined
+        });
+        if (回應.status !== 200) {
+          項目.status = "無效";
+          項目.error = `HTTP ${回應.status}`;
+          return;
+        }
+        const 內容 = await 回應.text();
+        if (!是HLS內容(內容)) {
+          項目.status = "無效";
+          項目.error = "HTTP 200，但內容不像 HLS／M3U8";
+          return;
+        }
+        項目.status = "有效";
+        項目.error = "";
+      } catch (錯誤) {
+        項目.status = "無效";
+        if (錯誤 && 錯誤.name === "AbortError") {
+          項目.error = "超時（超過 8 秒）";
+        } else if (錯誤 instanceof TypeError) {
+          項目.error = "無法讀取，可能是 CORS、網絡或網址問題";
+        } else {
+          項目.error = 錯誤.message || "讀取失敗";
+        }
+      } finally {
+        window.clearTimeout(超時計時器);
+      }
+    }
+
+    /* 以工作佇列方式限制並發數，避免一次建立大量請求。 */
+    async function 檢查全部地址() {
+      if (!state.isAnalyzed || state.uniqueEntries.length === 0 || state.isChecking) return;
+      設定忙碌(true);
+      state.validationFinished = false;
+      for (const 項目 of state.uniqueEntries) {
+        項目.status = "待檢查";
+        項目.error = "";
+      }
+
+      const 總數 = state.uniqueEntries.length;
+      let 下一個索引 = 0;
+      let 已完成數量 = 0;
+      const 更新檢查進度 = () => {
+        const 百分比 = 總數 === 0 ? 0 : Math.round((已完成數量 / 總數) * 100);
+        元素.進度條.style.width = `${百分比}%`;
+        元素.進度百分比.textContent = `${百分比}%`;
+        元素.進度文字.textContent = `已檢查 ${已完成數量.toLocaleString("zh-HK")}／${總數.toLocaleString("zh-HK")} 條`;
+        元素.進度外框.setAttribute("aria-valuenow", String(百分比));
+        更新統計();
+      };
+
+      async function 工作人員() {
+        while (true) {
+          const 索引 = 下一個索引++;
+          if (索引 >= 總數) return;
+          await 檢查單一地址(state.uniqueEntries[索引]);
+          已完成數量 += 1;
+          更新檢查進度();
+        }
+      }
+
+      const 並發數 = 取得檢查並發數(總數);
+      await Promise.all(Array.from({ length: 並發數 }, () => 工作人員()));
+      state.validationFinished = true;
+      設定忙碌(false);
+      更新統計();
+      顯示預覽();
+      顯示失效清單();
+      元素.失效清單按鈕.disabled = false;
+      元素.失效清單按鈕.textContent = `查看失效清單（${state.uniqueEntries.filter((項目) => 項目.status === "無效").length}）`;
+      元素.匯出提示.textContent = "匯出時會只包括有效播放路線。";
+      顯示提示("有效性檢查已完成。");
+    }
+
+    /* ==================== 匯出及剪貼簿 ==================== */
+
+    /* 產生標準 M3U 內容，保留每條路線的頻道名稱。 */
+    function 產生M3U內容() {
+      let 要匯出 = state.uniqueEntries;
+      if (state.validationFinished) {
+        要匯出 = state.uniqueEntries.filter((項目) => 項目.status === "有效");
+      }
+      const 行列 = ["#EXTM3U"];
+      for (const 項目 of 要匯出) {
+        行列.push(`#EXTINF:-1,${項目.name}`);
+        行列.push(項目.url);
+      }
+      return `${行列.join("\r\n")}\r\n`;
+    }
+
+    /* 使用 Blob 及隱藏下載連結觸發 merged.m3u 下載，不需要伺服器。 */
+    function 匯出M3U() {
+      if (!state.isAnalyzed || state.uniqueEntries.length === 0) {
+        顯示提示("請先完成分析，暫時沒有可匯出的路線。");
+        return;
+      }
+      const 內容 = 產生M3U內容();
+      const 下載網址 = URL.createObjectURL(new Blob([內容], { type: "audio/x-mpegurl;charset=utf-8" }));
+      const 連結 = document.createElement("a");
+      連結.href = 下載網址;
+      連結.download = "merged.m3u";
+      document.body.appendChild(連結);
+      連結.click();
+      連結.remove();
+      window.setTimeout(() => URL.revokeObjectURL(下載網址), 1000);
+      const 數量 = state.validationFinished ? state.uniqueEntries.filter((項目) => 項目.status === "有效").length : state.uniqueEntries.length;
+      顯示提示(`已準備下載 merged.m3u（${數量.toLocaleString("zh-HK")} 條路線）。`);
+    }
+
+    /* 支援安全上下文剪貼簿及 file:// 常見的後備方案。 */
+    async function 複製文字(文字) {
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+          await navigator.clipboard.writeText(文字);
+        } else {
+          throw new Error("不支援剪貼簿 API");
+        }
+      } catch (錯誤) {
+        const 暫存框 = document.createElement("textarea");
+        暫存框.value = 文字;
+        暫存框.style.position = "fixed";
+        暫存框.style.opacity = "0";
+        document.body.appendChild(暫存框);
+        暫存框.select();
+        document.execCommand("copy");
+        暫存框.remove();
+      }
+      顯示提示("已複製播放地址。");
+    }
+
+    /* 清除所有資料；不會刪除本機原檔案，只會清除本頁記憶體內容。 */
+    function 清除全部() {
+      if (state.isChecking) return;
+      state.sources = [];
+      state.rawEntries = [];
+      state.uniqueEntries = [];
+      state.isAnalyzed = false;
+      state.validationFinished = false;
+      state.showInvalidList = false;
+      元素.本地檔案.value = "";
+      元素.網址輸入.value = "";
+      元素.已選檔案提示.textContent = "尚未選擇本地檔案";
+      元素.來源清單.replaceChildren();
+      元素.錯誤清單.replaceChildren();
+      元素.錯誤清單.classList.remove("顯示");
+      元素.搜尋輸入.value = "";
+      元素.狀態篩選.value = "全部";
+      元素.進度文字.textContent = "尚未開始檢查";
+      元素.進度百分比.textContent = "0%";
+      元素.進度條.style.width = "0%";
+      元素.進度外框.setAttribute("aria-valuenow", "0");
+      更新統計();
+      顯示預覽();
+      更新按鈕狀態();
+      顯示提示("已清除本頁全部資料。");
+    }
+
+    /* 按目前資料狀態更新按鈕可用性。 */
+    function 更新按鈕狀態() {
+      const 有結果 = state.isAnalyzed && state.uniqueEntries.length > 0;
+      元素.檢查按鈕.disabled = !有結果 || state.isChecking;
+      元素.匯出按鈕.disabled = !有結果 || state.isChecking;
+      元素.失效清單按鈕.disabled = !state.validationFinished || state.isChecking;
+      元素.失效清單按鈕.textContent = state.validationFinished
+        ? `查看失效清單（${state.uniqueEntries.filter((項目) => 項目.status === "無效").length}）`
+        : "查看失效清單";
+      元素.匯出提示.textContent = state.validationFinished ? "匯出時會只包括有效播放路線。" : "完成分析後即可下載；未檢查前會匯出全部去重路線。";
+    }
+
+    /* ==================== 事件綁定 ==================== */
+
+    元素.本地檔案.addEventListener("change", () => {
+      const 檔案列 = Array.from(元素.本地檔案.files || []);
+      元素.已選檔案提示.textContent = 檔案列.length > 0
+        ? `已選擇 ${檔案列.length} 個檔案：${檔案列.slice(0, 2).map((檔案) => 檔案.name).join("、")}${檔案列.length > 2 ? "……" : ""}`
+        : "尚未選擇本地檔案";
+    });
+
+    ["dragenter", "dragover"].forEach((事件名稱) => {
+      元素.拖曳區.addEventListener(事件名稱, (事件) => {
+        事件.preventDefault();
+        元素.拖曳區.classList.add("拖曳中");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((事件名稱) => {
+      元素.拖曳區.addEventListener(事件名稱, (事件) => {
+        事件.preventDefault();
+        元素.拖曳區.classList.remove("拖曳中");
+      });
+    });
+
+    元素.拖曳區.addEventListener("drop", (事件) => {
+      const 檔案列 = Array.from(事件.dataTransfer.files || []);
+      if (檔案列.length === 0) return;
+      try {
+        const 資料傳送 = new DataTransfer();
+        for (const 檔案 of 檔案列) 資料傳送.items.add(檔案);
+        元素.本地檔案.files = 資料傳送.files;
+        元素.本地檔案.dispatchEvent(new Event("change"));
+      } catch (錯誤) {
+        元素.已選檔案提示.textContent = `已拖曳 ${檔案列.length} 個檔案，請按匯入；若未能讀取請改用點擊選擇。`;
+      }
+    });
+
+    元素.匯入按鈕.addEventListener("click", 匯入所有來源);
+    元素.分析按鈕.addEventListener("click", 開始分析);
+    元素.檢查按鈕.addEventListener("click", 檢查全部地址);
+    元素.匯出按鈕.addEventListener("click", 匯出M3U);
+    元素.清除按鈕.addEventListener("click", 清除全部);
+    元素.失效清單按鈕.addEventListener("click", () => {
+      state.showInvalidList = !state.showInvalidList;
+      if (state.showInvalidList) 顯示失效清單();
+      else 元素.錯誤清單.classList.remove("顯示");
+    });
+    元素.搜尋輸入.addEventListener("input", 顯示預覽);
+    元素.排序選擇.addEventListener("change", 顯示預覽);
+    元素.狀態篩選.addEventListener("change", 顯示預覽);
+
+    document.querySelectorAll('input[name="檢查速度"]').forEach((選項) => {
+      選項.addEventListener("change", 更新檢查速度提示);
+    });
+
+    /* 初始化畫面。 */
+    更新檢查速度提示();
+    更新統計();
+    更新按鈕狀態();
+  </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f7a3268ea56841db8cf028773ac41ab7"}' crossorigin="anonymous"></script>
+</body>
+</html>
